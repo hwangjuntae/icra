@@ -1,0 +1,29 @@
+{
+    "version": "1.0",
+    "file_records": [
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/ArchVis/Residential/Food/Containers/textures/TinCan_BaseColor.tga",
+            "source_hash": "8a3560c4ce2832e5a82883826ca64bd94bee76d6",
+            "target_url": "./textures/TinCan_BaseColor.tga",
+            "target_hash": "3ce5077714316d58d53f33879fc26f9bb2d95590"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/ArchVis/Residential/Food/Containers/textures/TinCan_M.tga",
+            "source_hash": "ccbcd114a5982207944dd45665c9251446056128",
+            "target_url": "./textures/TinCan_M.tga",
+            "target_hash": "dee2b06e91dd2678824431d4af52b824697681ff"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/ArchVis/Residential/Food/Containers/textures/TinCan_N.tga",
+            "source_hash": "e2ad1f42b3a0a541477a8e2f3cdb2ef98e07f820",
+            "target_url": "./textures/TinCan_N.tga",
+            "target_hash": "21433fd8b5e7fd24960a5483cfe1bb777a293d86"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/ArchVis/Residential/Food/Containers/textures/TinCan_R.tga",
+            "source_hash": "0fdef402718554f2a8adb33eb57cd31439002599",
+            "target_url": "./textures/TinCan_R.tga",
+            "target_hash": "cd2af8cc91af0b29c10b6a7ddc675e538f8c8d22"
+        }
+    ]
+}

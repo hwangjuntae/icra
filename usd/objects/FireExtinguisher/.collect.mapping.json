@@ -1,0 +1,65 @@
+{
+    "version": "1.0",
+    "file_records": [
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/ABCFireExtinguisher_A02_01.usd",
+            "source_hash": "98192e3e9f61ad8aaa23188a9a0492e0a5ea9df1",
+            "target_url": "./ABCFireExtinguisher_A02_01.usd",
+            "target_hash": "f85e47c7d28392eec3d0af10612f2d5f3e93acd8"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_Body_Albedo.png",
+            "source_hash": "18a66e14c874d75dadcf078905b401b71c40d5a8",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_Body_Albedo.png",
+            "target_hash": "04f86b7d2688403dd9480ecad07cbe28534595b7"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_Body_Normal.png",
+            "source_hash": "48db26057470b99c9b8dd89d73370d3a808f0f43",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_Body_Normal.png",
+            "target_hash": "4ceef09538dcfeeae0b9cb780dc1559aebc5d4d3"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_Body_ORM.png",
+            "source_hash": "a243e7cf9c3b039e525ef89fa129f48a6e0dcfb3",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_Body_ORM.png",
+            "target_hash": "4dc04ea9e992871bba93834204be13276af5a65f"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_Decal_Albedo.png",
+            "source_hash": "556b31045b38c88244e69183f2ed885b830f4726",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_Decal_Albedo.png",
+            "target_hash": "f5f6ebed4b89b5e01fd5f48bf89bcfadf9d4ebe3"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_Decal_Normal.png",
+            "source_hash": "6c39062aed34d64a7f134c8404f6830652bc4d0e",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_Decal_Normal.png",
+            "target_hash": "46e79a0456dd599c2b7d735609c4af083eb5f834"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_Decal_ORM.png",
+            "source_hash": "91c58cf9a6d48be06cab5d5a83a6b1a371b43090",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_Decal_ORM.png",
+            "target_hash": "127e34c9802ab5118152da3fd5cfb83151eb66bb"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_Decal_Opacity.png",
+            "source_hash": "4e9d554be0cbf63d930f52d5994605466c712551",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_Decal_Opacity.png",
+            "target_hash": "39c78c1921dc051ccea1642155c6cf43500a65b4"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_TransparentAcrylic_Normal.png",
+            "source_hash": "b0ba328465e06dde39693b6b8344198999ecbea3",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_TransparentAcrylic_Normal.png",
+            "target_hash": "f8a3a6d3b81e7be40231fe711e5a0b3fe2eb3399"
+        },
+        {
+            "source_url": "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/DigitalTwin/Assets/Warehouse/Safety/Fire_Protection/ABCFireExtinguisher_A/materials/T_M_ABCFireExtinguisher_A01_TransparentAcrylic_Opacity.png",
+            "source_hash": "552aaf9e19f59528280ae38cb7b329b6f716398a",
+            "target_url": "./materials/T_M_ABCFireExtinguisher_A01_TransparentAcrylic_Opacity.png",
+            "target_hash": "460dab72dccf4277661439e99e7baa8462060285"
+        }
+    ]
+}
