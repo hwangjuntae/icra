@@ -1,0 +1,168 @@
+{
+  "timestamp": 1752653131,
+  "total_objects": 11,
+  "average_risk_score": 12.725614700315875,
+  "risk_distribution": {
+    "SAFE": 5,
+    "LOW": 6,
+    "MEDIUM": 0,
+    "HIGH": 0,
+    "CRITICAL": 0
+  },
+  "detailed_results": [
+    {
+      "id": 0,
+      "label": "floor",
+      "confidence": 0.5088533759117126,
+      "category": "floor",
+      "risk_score": 17.523887554804485,
+      "risk_level": "LOW",
+      "bbox": [
+        2.3236083984375,
+        300.72222900390625,
+        1021.5933837890625,
+        572.33056640625
+      ]
+    },
+    {
+      "id": 1,
+      "label": "window glass panel",
+      "confidence": 0.3483426868915558,
+      "category": "safe",
+      "risk_score": 7.99316571570105,
+      "risk_level": "SAFE",
+      "bbox": [
+        910.2987060546875,
+        211.43563842773438,
+        973.3787841796875,
+        260.6411437988281
+      ]
+    },
+    {
+      "id": 2,
+      "label": "ceiling light light fixture",
+      "confidence": 0.3565760850906372,
+      "category": "ceiling",
+      "risk_score": 9.159239436603254,
+      "risk_level": "SAFE",
+      "bbox": [
+        258.8168640136719,
+        86.55718994140625,
+        352.0235290527344,
+        121.63748168945312
+      ]
+    },
+    {
+      "id": 3,
+      "label": "ceiling light light fixture",
+      "confidence": 0.34022676944732666,
+      "category": "ceiling",
+      "risk_score": 8.828631576564577,
+      "risk_level": "SAFE",
+      "bbox": [
+        790.6461181640625,
+        114.39651489257812,
+        891.1763916015625,
+        142.67160034179688
+      ]
+    },
+    {
+      "id": 4,
+      "label": "computer monitor",
+      "confidence": 0.6779316067695618,
+      "category": "safe",
+      "risk_score": 14.599978014826775,
+      "risk_level": "LOW",
+      "bbox": [
+        286.862548828125,
+        170.9781951904297,
+        378.2852783203125,
+        224.3277130126953
+      ]
+    },
+    {
+      "id": 5,
+      "label": "desk desk lamp floor lamp trash",
+      "confidence": 0.3245130479335785,
+      "category": "floor",
+      "risk_score": 11.531674957109821,
+      "risk_level": "LOW",
+      "bbox": [
+        138.12277221679688,
+        249.20462036132812,
+        191.46243286132812,
+        340.7948913574219
+      ]
+    },
+    {
+      "id": 6,
+      "label": "desk lamp floor lamp",
+      "confidence": 0.37141308188438416,
+      "category": "floor",
+      "risk_score": 12.4446618805329,
+      "risk_level": "LOW",
+      "bbox": [
+        453.1523742675781,
+        252.3384552001953,
+        476.3451232910156,
+        335.7546691894531
+      ]
+    },
+    {
+      "id": 7,
+      "label": "desk table",
+      "confidence": 0.37437203526496887,
+      "category": "safe",
+      "risk_score": 8.502454869035217,
+      "risk_level": "SAFE",
+      "bbox": [
+        631.9573364257812,
+        278.265625,
+        689.6979370117188,
+        308.93975830078125
+      ]
+    },
+    {
+      "id": 8,
+      "label": "ceiling",
+      "confidence": 0.5951648354530334,
+      "category": "ceiling",
+      "risk_score": 15.337532811694675,
+      "risk_level": "LOW",
+      "bbox": [
+        1.74407958984375,
+        0.819610595703125,
+        1021.8656616210938,
+        166.67178344726562
+      ]
+    },
+    {
+      "id": 9,
+      "label": "emergency exit sign door",
+      "confidence": 0.3124048113822937,
+      "category": "dynamic",
+      "risk_score": 25.55808001756668,
+      "risk_level": "LOW",
+      "bbox": [
+        831.7166137695312,
+        230.50790405273438,
+        851.7168579101562,
+        304.6829528808594
+      ]
+    },
+    {
+      "id": 10,
+      "label": "desk",
+      "confidence": 0.37437203526496887,
+      "category": "safe",
+      "risk_score": 8.502454869035217,
+      "risk_level": "SAFE",
+      "bbox": [
+        631.9573364257812,
+        278.265625,
+        689.6979370117188,
+        308.93975830078125
+      ]
+    }
+  ]
+}
