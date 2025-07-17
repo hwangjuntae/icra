@@ -1,0 +1,18 @@
+# YOLO + BLIP2 위험도 평가 노드 필수 패키지
+ultralytics>=8.0.0
+torch>=1.9.0
+torchvision>=0.10.0
+transformers>=4.20.0
+opencv-python>=4.6.0,<4.7.0
+numpy>=1.20.0,<2.0.0
+Pillow>=8.0.0
+scipy>=1.7.0
+matplotlib>=3.3.0
+requests>=2.25.0
+tqdm>=4.60.0
+pyyaml>=5.4.0
+pandas>=1.3.0
+
+# GPU 지원 (선택사항)
+# torch-audio
+# torchaudio 
