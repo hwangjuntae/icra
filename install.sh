@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# YOLO + BLIP2 위험도 평가 노드 설치 스크립트
+# YOLO + BLIP2 + LiDAR 융합 위험도 평가 노드 설치 스크립트
 # 사용법: ./install.sh
 
 set -e  # 에러 시 종료
 
 echo "=========================================="
-echo "YOLO + BLIP2 위험도 평가 노드 설치 시작"
+echo "YOLO + BLIP2 + LiDAR 위험도 평가 노드 설치 시작"
 echo "=========================================="
 
 # 색상 정의
@@ -81,11 +81,11 @@ chmod 755 models
 
 # 7. 실행 권한 설정
 print_status "실행 권한 설정 중..."
-chmod +x src/topic_yolo_blip2_risk.py
+chmod +x src/topic_yolo_blip2_lidar_risk.py
 
 # 8. ROS2 워크스페이스 빌드
 print_status "ROS2 워크스페이스 빌드 중..."
-cd ../../..  # /root/ws로 이동
+cd ../../..
 source /opt/ros/humble/setup.bash
 colcon build --packages-select risk_nav
 
@@ -93,7 +93,7 @@ colcon build --packages-select risk_nav
 print_status "환경 설정 파일 생성 중..."
 cat > src/risk_nav/setup_env.sh << 'EOF'
 #!/bin/bash
-# YOLO + BLIP2 위험도 평가 노드 환경 설정
+# YOLO + BLIP2 + LiDAR 위험도 평가 노드 환경 설정
 
 # ROS2 환경 설정
 source /opt/ros/humble/setup.bash
@@ -105,7 +105,7 @@ export PYTHONPATH="/root/ws/src/risk_nav/src:$PYTHONPATH"
 # GPU 설정 (CUDA 사용시)
 export CUDA_VISIBLE_DEVICES=0
 
-echo "YOLO + BLIP2 위험도 평가 노드 환경 설정 완료"
+echo "YOLO + BLIP2 + LiDAR 위험도 평가 노드 환경 설정 완료"
 EOF
 
 chmod +x src/risk_nav/setup_env.sh
@@ -114,15 +114,15 @@ chmod +x src/risk_nav/setup_env.sh
 print_status "테스트 스크립트 생성 중..."
 cat > src/risk_nav/test_node.sh << 'EOF'
 #!/bin/bash
-# YOLO + BLIP2 위험도 평가 노드 테스트
+# YOLO + BLIP2 + LiDAR 위험도 평가 노드 테스트
 
 # 환경 설정
 source /root/ws/src/risk_nav/setup_env.sh
 
 # 노드 실행
-echo "YOLO + BLIP2 위험도 평가 노드 실행 중..."
+echo "YOLO + BLIP2 + LiDAR 위험도 평가 노드 실행 중..."
 echo "종료하려면 Ctrl+C를 누르세요"
-python3 /root/ws/src/risk_nav/src/topic_yolo_blip2_risk.py
+python3 /root/ws/src/risk_nav/src/topic_yolo_blip2_lidar_risk.py
 EOF
 
 chmod +x src/risk_nav/test_node.sh
@@ -155,10 +155,11 @@ echo "   토픽: /risk_assessment/image"
 echo ""
 echo "3. 수동 실행:"
 echo "   source setup_env.sh"
-echo "   python3 src/topic_yolo_blip2_risk.py"
+echo "   python3 src/topic_yolo_blip2_lidar_risk.py"
 echo ""
 echo "토픽 정보:"
 echo "- 구독: /Camera/rgb (sensor_msgs/Image)"
+echo "- 구독: /Lidar/laser_scan (sensor_msgs/LaserScan)"
 echo "- 발행: /risk_assessment/image (sensor_msgs/Image)"
 echo ""
 print_status "설치 과정이 완료되었습니다."
