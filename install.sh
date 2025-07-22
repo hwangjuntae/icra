@@ -38,12 +38,14 @@ sudo apt install -y \
     ros-humble-sensor-msgs \
     ros-humble-std-msgs \
     ros-humble-geometry-msgs \
-    ros-humble-cv-bridge \
     ros-humble-image-transport \
     ros-humble-image-common \
     ros-humble-vision-msgs \
-    ros-humble-rqt-image-view \
-    python3-cv-bridge
+    ros-humble-rqt-image-view
+
+# cv_bridge는 나중에 별도로 처리
+print_status "cv_bridge 제거 중..."
+sudo apt remove -y python3-cv-bridge ros-humble-cv-bridge || true
 
 # 3. 시스템 개발 도구 설치
 print_status "개발 도구 설치 중..."
@@ -68,11 +70,24 @@ pip3 install --upgrade pip
 
 # NumPy 호환성 문제 해결
 print_status "NumPy 호환성 설정 중..."
-pip3 install "numpy>=1.20.0,<2.0.0" --force-reinstall
+pip3 install "numpy==1.23.5" --force-reinstall
+
+# sympy 충돌 문제 해결
+print_status "sympy 충돌 문제 해결 중..."
+pip3 install --upgrade --force-reinstall --ignore-installed sympy
 
 # 나머지 패키지 설치
 print_status "필수 패키지 설치 중..."
-pip3 install -r requirements.txt
+pip3 install torch torchvision transformers ultralytics pandas tqdm --ignore-installed
+
+# OpenCV 호환 버전 설치 (NumPy 버전 고정)
+print_status "OpenCV 호환 버전 설치 중..."
+pip3 install opencv-python==4.6.0.66 --force-reinstall --no-deps
+pip3 install numpy==1.23.5 --force-reinstall
+
+# cv_bridge 재설치 (OpenCV 4.6.0과 호환)
+print_status "cv_bridge 재설치 중..."
+sudo apt install -y ros-humble-cv-bridge python3-cv-bridge
 
 # 6. 모델 디렉토리 생성
 print_status "모델 디렉토리 생성 중..."
@@ -91,7 +106,7 @@ colcon build --packages-select risk_nav
 
 # 9. 환경 설정 파일 생성
 print_status "환경 설정 파일 생성 중..."
-cat > src/risk_nav/setup_env.sh << 'EOF'
+cat > setup_env.sh << 'EOF'
 #!/bin/bash
 # YOLO + BLIP2 + LiDAR 위험도 평가 노드 환경 설정
 
@@ -108,11 +123,11 @@ export CUDA_VISIBLE_DEVICES=0
 echo "YOLO + BLIP2 + LiDAR 위험도 평가 노드 환경 설정 완료"
 EOF
 
-chmod +x src/risk_nav/setup_env.sh
+chmod +x setup_env.sh
 
 # 10. 테스트 스크립트 생성
 print_status "테스트 스크립트 생성 중..."
-cat > src/risk_nav/test_node.sh << 'EOF'
+cat > test_node.sh << 'EOF'
 #!/bin/bash
 # YOLO + BLIP2 + LiDAR 위험도 평가 노드 테스트
 
@@ -125,7 +140,7 @@ echo "종료하려면 Ctrl+C를 누르세요"
 python3 /root/ws/src/risk_nav/src/topic_yolo_blip2_lidar_risk.py
 EOF
 
-chmod +x src/risk_nav/test_node.sh
+chmod +x test_node.sh
 
 # 11. 시각화 도구 설치 확인
 print_status "시각화 도구 설치 확인 중..."

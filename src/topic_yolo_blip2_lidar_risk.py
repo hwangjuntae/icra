@@ -81,6 +81,7 @@ class YOLOBlip2RiskNode(Node):
             10
         )
         self.latest_scan = None
+        
         # 카메라 수평 시야각 (Field of View)
         self.camera_hfov = 90.0    # 카메라 스펙에 맞게 조정
         
@@ -91,9 +92,9 @@ class YOLOBlip2RiskNode(Node):
         self.latest_image = None
         
         # 해상도 설정 (처리 속도 향상을 위해)
-        self.processing_scale = 0.6  # 60% 크기로 다운샘플링
-        self.min_processing_width = 320  # 최소 처리 너비
-        self.min_processing_height = 240  # 최소 처리 높이
+        self.processing_scale = 0.8  # 80% 크기로 증가 (인식률 향상)
+        self.min_processing_width = 640  # 최소 처리 너비 증가
+        self.min_processing_height = 480  # 최소 처리 높이 증가
         
         # 성능 모니터링
         self.processing_times = []
@@ -146,11 +147,23 @@ class YOLOBlip2RiskNode(Node):
             "default": 25
         }
         
+        # 객체 인식 최적화 설정
+        self.confidence_threshold = 0.3  # 신뢰도 임계값 낮춤 (더 많은 객체 인식)
+        self.nms_threshold = 0.4  # NMS 임계값
+        self.max_detections = 20  # 최대 탐지 객체 수
+        
+        # 거리 기반 필터링 설정
+        self.max_distance = 5.0  # 최대 거리 (미터)
+        self.min_distance = 0.3  # 최소 거리 (미터)
+        self.distance_weight = 0.7  # 거리 가중치
+        
         self.get_logger().info("YOLO + BLIP2 위험도 평가 노드 시작 (최적화 버전)")
         self.get_logger().info("구독 토픽: /Camera/rgb, /Lidar/laser_scan")
         self.get_logger().info("발행 토픽: /risk_assessment/image (sensor_msgs/Image)")
         self.get_logger().info(f"목표 처리 주파수: {self.target_fps}Hz ({self.frame_interval*1000:.1f}ms 간격)")
         self.get_logger().info(f"처리 해상도 스케일: {self.processing_scale:.1f} (최소: {self.min_processing_width}x{self.min_processing_height})")
+        self.get_logger().info(f"YOLO 설정: conf={self.confidence_threshold}, nms={self.nms_threshold}, max_det={self.max_detections}")
+        self.get_logger().info(f"거리 필터링: {self.min_distance}-{self.max_distance}m, 가중치={self.distance_weight}")
         self.get_logger().info(f"BLIP2 최적화: 배치크기={self.blip_batch_size}, 해상도={self.blip_resolution}, 캐시크기={self.cache_max_size}")
         self.get_logger().info(f"모델 저장 경로: {self.model_dir}")
         
@@ -310,7 +323,7 @@ class YOLOBlip2RiskNode(Node):
             if avg_time > expected_time * 1.5:  # 50% 이상 느리면
                 self.get_logger().warn(f"처리 속도가 목표보다 느림: {avg_time:.1f}ms > {expected_time:.1f}ms")
                 # 필요시 추가 최적화 수행
-                if self.processing_scale > 0.3:  # 최소 30%까지만 줄임
+                if self.processing_scale > 0.5:  # 최소 50%까지만 줄임
                     self.processing_scale *= 0.9
                     self.get_logger().info(f"처리 스케일 조정: {self.processing_scale:.2f}")
                      
@@ -355,18 +368,21 @@ class YOLOBlip2RiskNode(Node):
     def image_callback(self, msg):
         """이미지 콜백 함수 - 최신 이미지만 저장"""
         try:
-            if self.bridge is None:
-                self.get_logger().error("cv_bridge를 사용할 수 없습니다.")
-                return
-                
-            # ROS 이미지를 OpenCV 이미지로 변환 (안전한 방법)
-            try:
-                cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-            except Exception as bridge_error:
-                self.get_logger().error(f"cv_bridge 변환 오류: {str(bridge_error)}")
-                # 대안적인 방법으로 이미지 변환 시도
+            # cv_bridge가 있으면 사용, 없으면 수동 변환
+            cv_image = None
+            
+            if self.bridge is not None:
+                try:
+                    cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+                except Exception as bridge_error:
+                    self.get_logger().warning(f"cv_bridge 변환 실패, 수동 변환 사용: {str(bridge_error)}")
+                    cv_image = None
+            
+            # cv_bridge 실패하거나 없으면 수동 변환 사용
+            if cv_image is None:
                 cv_image = self.manual_image_conversion(msg)
                 if cv_image is None:
+                    self.get_logger().error("이미지 변환 실패")
                     return
             
             # 최신 이미지 업데이트 (타이머에서 처리됨)
@@ -434,22 +450,28 @@ class YOLOBlip2RiskNode(Node):
             class_name = detection['class_name']
             confidence = detection['confidence']
             risk_score = detection['risk_score']
+            distance = detection.get('distance', 'N/A')
             
             label = f"{class_name} {confidence:.2f}"
             risk_text = f"Risk: {risk_score:.1f} ({risk_level})"
+            distance_text = f"Dist: {distance}m" if isinstance(distance, (int, float)) else f"Dist: {distance}"
             
             # 텍스트 배경 박스 크기 계산
             (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
             (risk_w, risk_h), _ = cv2.getTextSize(risk_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+            (dist_w, dist_h), _ = cv2.getTextSize(distance_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
             
             # 텍스트 배경 박스 그리기
-            cv2.rectangle(vis_image, (x1, y1 - label_h - risk_h - 10), 
-                         (x1 + max(label_w, risk_w) + 10, y1), color, -1)
+            max_text_w = max(label_w, risk_w, dist_w)
+            cv2.rectangle(vis_image, (x1, y1 - label_h - risk_h - dist_h - 15), 
+                         (x1 + max_text_w + 10, y1), color, -1)
             
             # 텍스트 그리기
-            cv2.putText(vis_image, label, (x1 + 5, y1 - risk_h - 5), 
+            cv2.putText(vis_image, label, (x1 + 5, y1 - dist_h - risk_h - 10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-            cv2.putText(vis_image, risk_text, (x1 + 5, y1 - 5), 
+            cv2.putText(vis_image, risk_text, (x1 + 5, y1 - dist_h - 5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+            cv2.putText(vis_image, distance_text, (x1 + 5, y1 - 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
         
         # 전체 위험도 정보 표시
@@ -500,34 +522,44 @@ class YOLOBlip2RiskNode(Node):
         }
         try:
             if self.yolo_model is not None:
-                yolo_results = self.yolo_model(image)
+                # YOLO 추론 수행 (최적화된 설정)
+                yolo_results = self.yolo_model(
+                    image,
+                    conf=self.confidence_threshold,
+                    iou=self.nms_threshold,
+                    max_det=self.max_detections,
+                    verbose=False
+                )
+                
                 if len(yolo_results) > 0 and yolo_results[0].boxes is not None:
+                    detections = []
                     total_risk = 0.0
                     detection_count = 0
+                    
                     for detection in yolo_results[0].boxes:
                         x1, y1, x2, y2 = detection.xyxy[0].cpu().numpy()
                         confidence = float(detection.conf[0].cpu().numpy())
                         class_id = int(detection.cls[0].cpu().numpy())
                         class_name = self.yolo_model.names[class_id]
+                        
+                        # 스케일 정보 적용
                         if scale_info is not None:
                             x1 *= scale_info['scale_x']
                             y1 *= scale_info['scale_y']
                             x2 *= scale_info['scale_x']
                             y2 *= scale_info['scale_y']
-                        risk_score = self.calculate_risk_score(class_name, confidence)
+                        
+                        # 거리 정보 계산
+                        distance = self.calculate_object_distance(x1, y1, x2, y2, scale_info)
+                        
+                        # 거리 기반 필터링
+                        if distance is not None and (distance < self.min_distance or distance > self.max_distance):
+                            continue
+                        
+                        # 위험도 점수 계산 (거리 가중치 적용)
+                        risk_score = self.calculate_risk_score_with_distance(class_name, confidence, distance)
                         risk_level = self.get_risk_level(risk_score)
-                        # LiDAR overlap 체크
-                        lidar_overlap = False
-                        if self.latest_scan is not None and scale_info is not None:
-                            img_w = scale_info['original_size'][0]
-                            x_center = (x1 + x2) / 2.0
-                            rel_x = x_center / img_w
-                            angle_rad = (rel_x - 0.5) * math.radians(self.camera_hfov)
-                            idx = int((angle_rad - self.latest_scan.angle_min) / self.latest_scan.angle_increment)
-                            if 0 <= idx < len(self.latest_scan.ranges):
-                                dist = self.latest_scan.ranges[idx]
-                                if not math.isnan(dist) and dist < self.latest_scan.range_max:
-                                    lidar_overlap = True
+                        
                         detection_result = {
                             "class_name": class_name,
                             "confidence": confidence,
@@ -535,16 +567,28 @@ class YOLOBlip2RiskNode(Node):
                             "risk_score": float(risk_score),
                             "risk_level": risk_level,
                             "description": f"{class_name} 객체",
-                            "lidar_overlap": lidar_overlap
+                            "distance": distance,
+                            "lidar_overlap": distance is not None
                         }
-                        results["detections"].append(detection_result)
+                        
+                        detections.append(detection_result)
                         total_risk += risk_score
                         detection_count += 1
-                    # LiDAR 겹침 객체 우선 정렬
-                    results["detections"].sort(key=lambda d: not d.get("lidar_overlap", False))
+                    
+                    # 거리 기반 정렬 (가까운 객체 우선)
+                    detections.sort(key=lambda d: d.get('distance', float('inf')) if d.get('distance') is not None else float('inf'))
+                    
+                    # 최대 탐지 수 제한
+                    detections = detections[:self.max_detections]
+                    
+                    results["detections"] = detections
+                    
                     if detection_count > 0:
                         results["overall_risk_score"] = total_risk / detection_count
                         results["risk_level"] = self.get_risk_level(results["overall_risk_score"])
+                        
+                        self.get_logger().info(f"YOLO 탐지: {detection_count}개 객체 (거리순 정렬)")
+            
             # 배치 처리로 BLIP2 분석 수행
             if self.blip_model is not None and self.blip_queue:
                 # 비동기로 배치 처리 시작
@@ -556,8 +600,58 @@ class YOLOBlip2RiskNode(Node):
                 
         except Exception as e:
             self.get_logger().error(f"위험도 평가 오류: {str(e)}")
+            traceback.print_exc()
             
         return results
+        
+    def calculate_object_distance(self, x1, y1, x2, y2, scale_info=None):
+        """객체의 거리 계산 (LiDAR 융합)"""
+        if self.latest_scan is None or scale_info is None:
+            return None
+            
+        try:
+            # 객체 중심점 계산
+            center_x = (x1 + x2) / 2.0
+            center_y = (y1 + y2) / 2.0
+            
+            # 이미지 중심에서의 상대적 위치
+            img_width = scale_info['original_size'][0]
+            img_height = scale_info['original_size'][1]
+            
+            # 정규화된 좌표 (-1 to 1)
+            rel_x = (center_x / img_width) * 2.0 - 1.0  # -1 (왼쪽) to 1 (오른쪽)
+            
+            # 카메라 시야각을 라이다 각도로 변환
+            angle_rad = rel_x * math.radians(self.camera_hfov / 2.0)
+            
+            # 라이다 인덱스 계산
+            if self.latest_scan.angle_increment != 0:
+                idx = int((angle_rad - self.latest_scan.angle_min) / self.latest_scan.angle_increment)
+                
+                if 0 <= idx < len(self.latest_scan.ranges):
+                    distance = self.latest_scan.ranges[idx]
+                    
+                    # 유효한 거리인지 확인
+                    if not math.isnan(distance) and distance > 0 and distance < self.latest_scan.range_max:
+                        return distance
+                        
+        except Exception as e:
+            self.get_logger().debug(f"거리 계산 오류: {str(e)}")
+            
+        return None
+        
+    def calculate_risk_score_with_distance(self, class_name, confidence, distance):
+        """거리 가중치를 적용한 위험도 점수 계산"""
+        # 기본 위험도 점수
+        base_score = self.calculate_risk_score(class_name, confidence)
+        
+        # 거리 가중치 적용
+        if distance is not None:
+            # 거리가 가까울수록 위험도 증가
+            distance_factor = max(0.5, 2.0 - (distance / self.max_distance))
+            base_score *= distance_factor
+            
+        return max(0, min(100, base_score))
         
     def process_blip_batch(self, batch_objects, results):
         """배치로 BLIP2 처리 (비동기)"""
@@ -755,7 +849,12 @@ def main(args=None):
         # 비동기 처리 정리
         if node is not None and hasattr(node, 'thread_executor'):
             node.thread_executor.shutdown(wait=True)
-        rclpy.shutdown()
+        # rclpy 종료 전에 컨텍스트 확인
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception as e:
+            print(f"rclpy 종료 오류 (무시됨): {str(e)}")
 
 if __name__ == '__main__':
     main()
