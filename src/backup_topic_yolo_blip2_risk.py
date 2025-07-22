@@ -131,24 +131,13 @@ class YOLOBlip2RiskNode(Node):
                 if not self.yolo_model_path.exists():
                     self.get_logger().info("YOLOv11 모델이 없습니다. 다운로드 중...")
                     
-                # YOLOv11 nano 모델 로드 (자동 다운로드)
-                self.yolo_model = YOLO('yolo11n.pt')
-                
-                # 모델을 지정된 경로로 이동
-                if not self.yolo_model_path.exists():
-                    import shutil
-                    # ultralytics가 다운로드한 모델을 우리 경로로 복사
-                    home_model_path = Path.home() / '.ultralytics' / 'models' / 'yolo11n.pt'
-                    if home_model_path.exists():
-                        shutil.copy2(home_model_path, self.yolo_model_path)
-                        self.get_logger().info(f"모델을 {self.yolo_model_path}로 복사 완료")
-                
-                # 지정된 경로에서 모델 로드
+                # YOLOv11 nano 모델 로드
                 if self.yolo_model_path.exists():
                     self.yolo_model = YOLO(str(self.yolo_model_path))
                     self.get_logger().info(f"YOLOv11 모델 로드 완료: {self.yolo_model_path}")
                 else:
-                    self.get_logger().info("YOLOv11 모델 로드 완료 (기본 위치)")
+                    self.get_logger().error(f"YOLO 모델을 찾을 수 없습니다: {self.yolo_model_path}")
+                    self.yolo_model = None
             else:
                 self.yolo_model = None
                 

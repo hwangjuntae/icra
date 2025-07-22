@@ -213,7 +213,8 @@ class RiskMapNode(Node):
             if YOLO_AVAILABLE:
                 # YOLOv11 모델 로드
                 self.get_logger().info("YOLOv11 모델 로드 중...")
-                self.yolo_model = YOLO('yolo11n.pt')
+                model_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'yolo11n.pt')
+                self.yolo_model = YOLO(model_path)
                 self.get_logger().info("YOLOv11 모델 로드 완료")
             else:
                 self.yolo_model = None

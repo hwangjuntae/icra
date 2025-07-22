@@ -98,51 +98,10 @@ chmod 755 models
 print_status "실행 권한 설정 중..."
 chmod +x src/topic_yolo_blip2_lidar_risk.py
 
-# 8. ROS2 워크스페이스 빌드
-print_status "ROS2 워크스페이스 빌드 중..."
-cd ../../..
-source /opt/ros/humble/setup.bash
-colcon build --packages-select risk_nav
+# 8. 설치 완료 메시지
+print_status "설치 완료!"
 
-# 9. 환경 설정 파일 생성
-print_status "환경 설정 파일 생성 중..."
-cat > setup_env.sh << 'EOF'
-#!/bin/bash
-# YOLO + BLIP2 + LiDAR 위험도 평가 노드 환경 설정
-
-# ROS2 환경 설정
-source /opt/ros/humble/setup.bash
-source /root/ws/install/setup.bash
-
-# Python 경로 설정
-export PYTHONPATH="/root/ws/src/risk_nav/src:$PYTHONPATH"
-
-# GPU 설정 (CUDA 사용시)
-export CUDA_VISIBLE_DEVICES=0
-
-echo "YOLO + BLIP2 + LiDAR 위험도 평가 노드 환경 설정 완료"
-EOF
-
-chmod +x setup_env.sh
-
-# 10. 테스트 스크립트 생성
-print_status "테스트 스크립트 생성 중..."
-cat > test_node.sh << 'EOF'
-#!/bin/bash
-# YOLO + BLIP2 + LiDAR 위험도 평가 노드 테스트
-
-# 환경 설정
-source /root/ws/src/risk_nav/setup_env.sh
-
-# 노드 실행
-echo "YOLO + BLIP2 + LiDAR 위험도 평가 노드 실행 중..."
-echo "종료하려면 Ctrl+C를 누르세요"
-python3 /root/ws/src/risk_nav/src/topic_yolo_blip2_lidar_risk.py
-EOF
-
-chmod +x test_node.sh
-
-# 11. 시각화 도구 설치 확인
+# 9. 시각화 도구 설치 확인
 print_status "시각화 도구 설치 확인 중..."
 if ! command -v ros2 &> /dev/null; then
     print_error "ROS2가 설치되지 않았습니다."
@@ -154,7 +113,7 @@ if ! ros2 pkg list | grep -q rqt_image_view; then
     sudo apt install -y ros-humble-rqt-image-view
 fi
 
-# 12. 설치 완료 메시지
+# 10. 설치 완료 메시지
 echo ""
 echo "=========================================="
 print_status "설치 완료!"
@@ -162,15 +121,11 @@ echo "=========================================="
 echo ""
 echo "사용법:"
 echo "1. 노드 실행:"
-echo "   ./test_node.sh"
+echo "   python3 src/topic_yolo_blip2_lidar_risk.py"
 echo ""
 echo "2. 결과 확인:"
 echo "   ros2 run rqt_image_view rqt_image_view"
 echo "   토픽: /risk_assessment/image"
-echo ""
-echo "3. 수동 실행:"
-echo "   source setup_env.sh"
-echo "   python3 src/topic_yolo_blip2_lidar_risk.py"
 echo ""
 echo "토픽 정보:"
 echo "- 구독: /Camera/rgb (sensor_msgs/Image)"
@@ -179,7 +134,7 @@ echo "- 발행: /risk_assessment/image (sensor_msgs/Image)"
 echo ""
 print_status "설치 과정이 완료되었습니다."
 
-# 13. 최종 점검
+# 11. 최종 점검
 print_status "최종 설치 점검 중..."
 if python3 -c "import ultralytics, torch, transformers, cv2, numpy, rclpy; print('모든 패키지 임포트 성공')" 2>/dev/null; then
     print_status "모든 필수 패키지가 정상적으로 설치되었습니다."
