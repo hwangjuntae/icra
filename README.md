@@ -1,6 +1,6 @@
-# YOLO + BLIP2 위험도 평가 노드
+# Risk Navigation System
 
-YOLOv11을 사용한 객체 탐지와 BLIP2를 사용한 위험도 평가를 수행하는 ROS2 노드입니다.
+YOLOv11을 사용한 객체 탐지, BLIP2를 사용한 위험도 평가, 그리고 실시간 Risk Map 생성을 수행하는 ROS2 시스템입니다.
 
 ## 📋 목차
 - [기능](#기능)
@@ -16,6 +16,9 @@ YOLOv11을 사용한 객체 탐지와 BLIP2를 사용한 위험도 평가를 수
 - **BLIP2** 객체 및 장면 설명 생성
 - **위험도 점수** 계산 및 레벨 분류
 - **바운딩 박스** 시각화
+- **실시간 Risk Map** 생성 및 업데이트
+- **LiDAR 융합** 거리 기반 위험도 평가
+- **시간 기반 위험도 감쇠** 동적 맵 관리
 - **ROS2 토픽** 실시간 결과 전송
 - **GPU 가속** 지원 (CUDA)
 
@@ -64,49 +67,84 @@ chmod +x install.sh
 source /root/ws/src/risk_nav/setup_env.sh
 ```
 
-### 2. 노드 실행 (3가지 방법)
+### 2. 전체 시스템 실행 (권장)
 
-#### 방법 1: 테스트 스크립트 사용 (권장)
+#### Launch 파일 사용
+```bash
+# 전체 시스템 실행 (위험도 평가 + Risk Map)
+ros2 launch risk_nav risk_mapping.launch.py
+
+# 특정 토픽 지정
+ros2 launch risk_nav risk_mapping.launch.py camera_topic:=/camera/image_raw lidar_topic:=/scan
+```
+
+### 3. 개별 노드 실행
+
+#### 위험도 평가 노드만 실행
+```bash
+ros2 run risk_nav topic_yolo_blip2_lidar_risk.py
+```
+
+#### Risk Mapping 노드만 실행
+```bash
+ros2 run risk_nav risk_mapping.py
+```
+
+### 4. 테스트 스크립트 사용
 ```bash
 cd /root/ws/src/risk_nav
 ./test_node.sh
 ```
 
-#### 방법 2: 직접 실행
-```bash
-cd /root/ws
-python3 src/risk_nav/src/topic_yolo_blip2_risk.py
-```
+### 5. 결과 확인
 
-#### 방법 3: ROS2 launch 사용
-```bash
-ros2 run risk_nav topic_yolo_blip2_risk.py
-```
-
-### 3. 결과 확인
-
-#### 시각화된 이미지 확인
+#### 위험도 평가 결과 확인
 ```bash
 # 새 터미널에서
 ros2 run rqt_image_view rqt_image_view
 # 토픽 선택: /risk_assessment/image
 ```
 
+#### Risk Map 확인
+```bash
+# Risk Map 시각화
+ros2 run rqt_image_view rqt_image_view
+# 토픽 선택: /risk_visualization
+
+# Risk Map 정보 확인
+ros2 topic info /risk_map
+ros2 topic echo /risk_map --once
+```
+
 #### 터미널에서 토픽 정보 확인
 ```bash
 # 토픽 정보 확인
 ros2 topic info /risk_assessment/image
+ros2 topic info /risk_map
 
 # 주파수 확인
 ros2 topic hz /risk_assessment/image
+ros2 topic hz /risk_visualization
 
 # 토픽 목록 확인
 ros2 topic list | grep risk
 ```
 
 ## 📡 토픽 정보
-- **구독 토픽**: `/Camera/rgb` (sensor_msgs/Image)
+
+### 위험도 평가 노드
+- **구독 토픽**: 
+  - `/Camera/rgb` (sensor_msgs/Image)
+  - `/Lidar/laser_scan` (sensor_msgs/LaserScan)
 - **발행 토픽**: `/risk_assessment/image` (sensor_msgs/Image)
+
+### Risk Mapping 노드
+- **구독 토픽**:
+  - `/risk_assessment/image` (sensor_msgs/Image)
+  - `/Lidar/laser_scan` (sensor_msgs/LaserScan)
+- **발행 토픽**:
+  - `/risk_map` (nav_msgs/OccupancyGrid)
+  - `/risk_visualization` (sensor_msgs/Image)
 
 ## 🎯 모델 정보
 - **YOLO 모델**: YOLOv11 nano (yolo11n.pt)
@@ -116,14 +154,21 @@ ros2 topic list | grep risk
 
 ## 📊 출력 데이터
 
-### 시각화된 이미지에 표시되는 정보:
+### 위험도 평가 결과 (시각화된 이미지)
 - **🔲 바운딩 박스**: 위험도 레벨에 따른 색상 구분
   - 🟢 **녹색**: 낮은 위험 (0-30점)
   - 🟡 **노란색**: 보통 위험 (31-70점)
   - 🔴 **빨간색**: 높은 위험 (71-100점)
-- **📝 객체 정보**: 클래스명, 신뢰도, 위험도 점수
+- **📝 객체 정보**: 클래스명, 신뢰도, 위험도 점수, 거리 정보
 - **📈 전체 위험도**: 상단에 전체 객체 수와 평균 위험도 표시
 - **🎬 장면 설명**: 하단에 BLIP2가 생성한 장면 설명 표시
+
+### Risk Map 기능
+- **🗺️ 실시간 맵 생성**: 100m x 100m 크기의 위험도 맵
+- **📍 위치 기반 위험도**: 이미지 좌표를 월드 좌표로 변환하여 맵에 표시
+- **⏰ 시간 기반 감쇠**: 위험도가 시간에 따라 자동으로 감소 (30초 후 제거)
+- **📊 시각화**: Jet 컬러맵을 사용한 위험도 시각화
+- **📈 통계 정보**: 최대/평균 위험도, 히스토리 정보 표시
 
 ### 위험도 레벨
 | 레벨 | 점수 범위 | 설명 | 색상 |
