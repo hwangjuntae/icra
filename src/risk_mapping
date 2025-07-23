@@ -66,58 +66,45 @@ class RiskMappingNode(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
-        # 맵 설정
-        self.map_resolution = 0.1  # 10cm per pixel
-        self.map_width = 500       # 50m x 50m
-        self.map_height = 500
-        self.map_origin_x = -25.0   # base_link 기준 (맵의 왼쪽 하단)
-        self.map_origin_y = -25.0   # base_link 기준 (맵의 왼쪽 하단)
+        # 맵 설정 (10-15Hz 고성능 최적화)
+        self.map_resolution = 0.15  # 15cm per pixel (더 낮은 해상도)
+        self.map_width = 150        # 22.5m x 22.5m (더 작은 맵)
+        self.map_height = 150
+        # self.map_origin_x = -11.25  # map 기준 (맵의 왼쪽 하단) - 주석 처리
+        # self.map_origin_y = -11.25  # map 기준 (맵의 왼쪽 하단) - 주석 처리
+        
+        # 좌표계 설정
+        self.use_fixed_frame = True  # True: base_link 고정, False: map 프레임 사용
+        self.fixed_frame = "base_link"  # 고정 좌표계 프레임
+        
+        # 맵 고정을 위한 추가 설정
+        self.map_frame_id = "base_link"  # 맵 프레임 ID
+        self.map_origin_x = 0.0  # base_link 기준으로 원점 설정
+        self.map_origin_y = 0.0
         
         # 위험도 맵 초기화
         self.risk_map = np.zeros((self.map_height, self.map_width), dtype=np.float32)
         self.occupancy_map = np.zeros((self.map_height, self.map_width), dtype=np.int8)
         
-        # 테스트용 위험도 데이터 추가 (맵 중앙에)
-        center_x, center_y = self.map_width // 2, self.map_height // 2
-        test_radius = 50
+        # 위험한 물체 위치 저장 (월드 좌표)
+        self.detected_objects = []  # [(world_x, world_y, timestamp), ...]
         
-        # 간단한 원형 테스트 데이터 추가
-        for i in range(max(0, center_x - test_radius), min(self.map_width, center_x + test_radius)):
-            for j in range(max(0, center_y - test_radius), min(self.map_height, center_y + test_radius)):
-                distance = np.sqrt((i - center_x)**2 + (j - center_y)**2)
-                if distance <= test_radius:
-                    self.risk_map[j, i] = max(0, 50 - distance)  # 중앙에서 멀어질수록 위험도 감소
+        # 초기화 완료 로그
+        self.get_logger().info("Risk Map 초기화 완료 - 실제 위험도 반영 (base_link 고정)")
         
-        # 초기 테스트 데이터 로그
-        self.get_logger().info(f"테스트 데이터 추가: 중앙({center_x}, {center_y}), 반지름: {test_radius}")
-        self.get_logger().info(f"초기 위험도 맵 최대값: {np.max(self.risk_map):.1f}")
-        self.get_logger().info(f"초기 위험도 맵 0이 아닌 픽셀 수: {np.sum(self.risk_map > 0)}")
-        
-        # 추가 테스트: 맵의 일부 영역에 고정 데이터 추가
-        test_area_size = 100
-        start_x = center_x - test_area_size // 2
-        start_y = center_y - test_area_size // 2
-        end_x = start_x + test_area_size
-        end_y = start_y + test_area_size
-        
-        for i in range(start_x, end_x):
-            for j in range(start_y, end_y):
-                if 0 <= i < self.map_width and 0 <= j < self.map_height:
-                    self.risk_map[j, i] = 30  # 고정 위험도 값
-        
-        # 위험도 설정
+        # 위험도 설정 (RViz 호환 범위)
         self.risk_levels = {
-            "low": 25,
-            "medium": 50,
-            "high": 75
+            "low": 30,
+            "medium": 60,
+            "high": 90
         }
         
         # 시간 기반 위험도 감쇠
         self.risk_decay_rate = 0.95  # 매 프레임마다 5% 감쇠
         self.max_risk_age = 30.0     # 30초 후 위험도 제거
         
-        # 위험도 히스토리 (시간 기반 감쇠용)
-        self.risk_history = deque(maxlen=1000)
+        # 위험도 히스토리 (시간 기반 감쇠용) - 메모리 최적화
+        self.risk_history = deque(maxlen=500)
         
         # 최신 데이터 저장
         self.latest_risk_data = None
@@ -128,14 +115,16 @@ class RiskMappingNode(Node):
         self.processing_times = []
         self.max_time_samples = 10
         
-        # 타이머 생성 (1Hz로 맵 업데이트)
-        self.map_update_timer = self.create_timer(1.0, self.update_risk_map)
+        # 타이머 생성 (12Hz로 맵 업데이트 - 10-15Hz 범위)
+        self.map_update_timer = self.create_timer(0.083, self.update_risk_map)  # 1/12 ≈ 0.083초
         
         # 초기화 완료 메시지
-        self.get_logger().info("Risk Mapping 노드 시작")
+        self.get_logger().info("Risk Mapping 노드 시작 (10-15Hz 최적화)")
         self.get_logger().info(f"맵 크기: {self.map_width}x{self.map_height} ({self.map_width * self.map_resolution:.1f}m x {self.map_height * self.map_resolution:.1f}m)")
         self.get_logger().info(f"맵 해상도: {self.map_resolution}m/pixel")
+        self.get_logger().info(f"업데이트 주파수: 12Hz (목표: 10-15Hz)")
         self.get_logger().info(f"위험도 감쇠율: {self.risk_decay_rate:.2f}")
+        self.get_logger().info(f"좌표계 설정: {'base_link 고정' if self.use_fixed_frame else 'map 프레임'} ({self.fixed_frame})")
         self.get_logger().info("구독 토픽: /risk_assessment/image, /Lidar/laser_scan")
         self.get_logger().info("발행 토픽: /risk_map (OccupancyGrid)")
         
@@ -159,41 +148,50 @@ class RiskMappingNode(Node):
             self.get_logger().error(f"위험도 이미지 처리 오류: {str(e)}")
             
     def extract_risk_data_from_image(self, image):
-        """이미지에서 위험도 데이터 추출 (시각적 분석)"""
+        """이미지에서 위험도 데이터 추출 (시각적 분석) - 최적화됨"""
         try:
             # 이미지 크기
             height, width = image.shape[:2]
             
+            # 이미지 다운샘플링으로 처리 속도 향상 (10-15Hz 최적화)
+            scale_factor = 0.3  # 더 작은 크기로 처리 속도 향상
+            small_image = cv2.resize(image, (int(width * scale_factor), int(height * scale_factor)))
+            
             # 색상 기반 위험도 탐지
             risk_detections = []
             
-            # 위험도 레벨별 색상 (BGR)
+            # 위험도 레벨별 색상 (BGR) - 더 관대한 범위
             color_map = {
                 "low": (0, 255, 0),      # 녹색
                 "medium": (0, 255, 255), # 노란색
                 "high": (0, 0, 255)      # 빨간색
             }
             
-            # 각 색상 범위에서 객체 탐지
+            # 각 색상 범위에서 객체 탐지 (최적화된 범위)
             for risk_level, color in color_map.items():
-                # 색상 마스크 생성 (더 관대한 범위)
-                lower_color = np.array([max(0, c-50) for c in color])
-                upper_color = np.array([min(255, c+50) for c in color])
+                # 색상 마스크 생성 (10-15Hz 최적화된 범위)
+                lower_color = np.array([max(0, c-70) for c in color])  # 더 관대한 범위
+                upper_color = np.array([min(255, c+70) for c in color])
                 
-                mask = cv2.inRange(image, lower_color, upper_color)
+                mask = cv2.inRange(small_image, lower_color, upper_color)
                 
-                # 모폴로지 연산으로 노이즈 제거
-                kernel = np.ones((3,3), np.uint8)
+                # 간단한 모폴로지 연산 (성능 향상)
+                kernel = np.ones((2,2), np.uint8)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-                mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
                 
-                # 윤곽선 찾기
+                # 윤곽선 찾기 (최적화된 파라미터)
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 
                 for contour in contours:
-                    # 최소 크기 필터링 (더 작은 크기 허용)
-                    if cv2.contourArea(contour) > 50:
+                    # 최소 크기 필터링 (10-15Hz 최적화)
+                    if cv2.contourArea(contour) > 20:  # 더 작은 크기 허용
                         x, y, w, h = cv2.boundingRect(contour)
+                        
+                        # 원본 이미지 좌표로 변환
+                        x = int(x / scale_factor)
+                        y = int(y / scale_factor)
+                        w = int(w / scale_factor)
+                        h = int(h / scale_factor)
                         
                         # 바운딩 박스 중심점
                         center_x = x + w // 2
@@ -202,6 +200,16 @@ class RiskMappingNode(Node):
                         # 위험도 점수 계산
                         risk_score = self.risk_levels.get(risk_level, 25)
                         
+                        # 실제 위험도 점수로 변환 (0-100 범위)
+                        if risk_level == "low":
+                            risk_score = 30
+                        elif risk_level == "medium":
+                            risk_score = 60
+                        elif risk_level == "high":
+                            risk_score = 90
+                        else:
+                            risk_score = 45  # 기본값
+                        
                         detection = {
                             "bbox": {
                                 "x1": float(x),
@@ -209,9 +217,10 @@ class RiskMappingNode(Node):
                                 "x2": float(x + w),
                                 "y2": float(y + h)
                             },
-                            "center": (center_x, center_y),
-                            "risk_score": risk_score,
+                            "center": [float(center_x), float(center_y)],
+                            "risk_score": float(risk_score),
                             "risk_level": risk_level,
+                            "class_name": f"risk_object_{risk_level}",
                             "confidence": 0.8  # 기본 신뢰도
                         }
                         
@@ -319,27 +328,50 @@ class RiskMappingNode(Node):
         self.latest_scan = msg
         
     def update_risk_map(self):
-        """Risk Map 업데이트"""
+        """Risk Map 업데이트 - 최적화됨"""
         start_time = time.time()
         
         try:
-            # 위험도 감쇠 적용
-            self.apply_risk_decay()
+            # 조건부 업데이트: 새로운 데이터가 있을 때만 처리 (10-15Hz 최적화)
+            has_new_data = (self.latest_risk_data is not None and 
+                           self.latest_scan is not None and
+                           len(self.latest_risk_data.get('detections', [])) > 0)
             
-            # 새로운 위험도 추가 (데이터가 있을 때만)
-            if self.latest_risk_data is not None and self.latest_scan is not None:
+            # 성능 모니터링: 처리 시간 측정
+            processing_start = time.time()
+            
+            if has_new_data:
+                # 위험도 감쇠 적용 (더 빠른 감쇠)
+                self.apply_risk_decay()
+                
+                # 새로운 위험도 추가
                 self.add_new_risks()
-            
-            # 맵 발행
-            self.publish_risk_map()
-            
-            # 성능 통계 업데이트
-            processing_time = (time.time() - start_time) * 1000
-            self.update_performance_stats(processing_time)
-            
-            # 통계 로그
-            stats = self.get_risk_statistics()
-            self.get_logger().info(f"Risk Map 업데이트: {stats} | 처리시간: {processing_time:.1f}ms")
+                
+                # 맵 발행
+                self.publish_risk_map()
+                
+                # 성능 통계 업데이트
+                processing_time = (time.time() - start_time) * 1000
+                self.update_performance_stats(processing_time)
+                
+                # 통계 로그 (10-15Hz 최적화)
+                detection_count = len(self.latest_risk_data.get('detections', []))
+                actual_fps = 1000.0 / processing_time if processing_time > 0 else 0
+                self.get_logger().info(f"맵 업데이트: {detection_count}개 객체 | {processing_time:.1f}ms | FPS: {actual_fps:.1f}")
+                
+                # 성능 경고 (목표 FPS 대비)
+                if actual_fps < 8.0:  # 10Hz의 80% 미만
+                    self.get_logger().warn(f"성능 저하 감지: {actual_fps:.1f}Hz (목표: 10-15Hz)")
+            else:
+                # 데이터가 없으면 간단한 감쇠만 적용
+                self.apply_risk_decay()
+                
+                # 맵 발행 (최소한의 업데이트)
+                self.publish_risk_map()
+                
+                # 빈 업데이트 시간 측정
+                empty_time = (time.time() - processing_start) * 1000
+                self.get_logger().debug(f"빈 업데이트: {empty_time:.1f}ms")
                 
         except Exception as e:
             self.get_logger().error(f"Risk Map 업데이트 오류: {str(e)}")
@@ -347,17 +379,16 @@ class RiskMappingNode(Node):
             traceback.print_exc()
             
     def apply_risk_decay(self):
-        """시간 기반 위험도 감쇠 적용"""
+        """시간 기반 위험도 감쇠 적용 - 최적화됨"""
         current_time = time.time()
         
-        # 맵 전체에 감쇠 적용 (테스트 데이터는 보존)
-        decay_mask = self.risk_map > 0
-        self.risk_map[decay_mask] *= self.risk_decay_rate
+        # 맵 전체에 감쇠 적용 (벡터화 연산)
+        self.risk_map *= self.risk_decay_rate
         
-        # 오래된 위험도 제거 (최소값을 높여서 테스트 데이터 보존)
-        self.risk_map[self.risk_map < 5.0] = 0.0
+        # 오래된 위험도 제거 (임계값 낮춤)
+        self.risk_map[self.risk_map < 2.0] = 0.0
         
-        # 히스토리에서 오래된 항목 제거
+        # 히스토리에서 오래된 항목 제거 (더 빠른 제거)
         while self.risk_history and (current_time - self.risk_history[0]['timestamp']) > self.max_risk_age:
             self.risk_history.popleft()
             
@@ -467,62 +498,126 @@ class RiskMappingNode(Node):
         return 0 <= map_x < self.map_width and 0 <= map_y < self.map_height
         
     def publish_risk_map(self):
-        """Risk Map을 OccupancyGrid로 발행"""
+        """Risk Map을 OccupancyGrid로 발행 - 실제 위험도 반영 (base_link 고정)"""
         try:
-            # 간단한 테스트 데이터 생성
+            # 실제 위험도를 반영한 맵 데이터 생성
             occupancy_data = np.zeros((self.map_height, self.map_width), dtype=np.int8)
             
-            # 실제 위험도 데이터를 맵에 반영
+            # 새로운 위험한 물체 탐지 및 저장
             if hasattr(self, 'latest_risk_data') and self.latest_risk_data:
                 for detection in self.latest_risk_data.get('detections', []):
-                    # 이미지 좌표를 월드 좌표로 변환
+                    # 이미지 좌표를 base_link 좌표로 변환
                     img_center = detection['center']
-                    world_coords = self.image_to_world_coordinates(img_center[0], img_center[1])
+                    bbox = detection.get('bbox', {})
+                    base_link_coords = self.image_to_world_coordinates(img_center[0], img_center[1], bbox)
                     
-                    if world_coords:
-                        world_x, world_y, _ = world_coords
-                        map_x, map_y = self.world_to_map_coordinates(world_x, world_y)
+                    if base_link_coords:
+                        base_x, base_y, _ = base_link_coords
                         
-                        if self.is_valid_map_coordinates(map_x, map_y):
-                            # 위험도 점수를 맵에 반영
-                            risk_score = detection.get('risk_score', 25)
-                            risk_value = min(100, max(0, risk_score))
-                            
-                            # 위험도 영역을 맵에 그리기
-                            radius = 10  # 위험도 영역 반지름
-                            for i in range(max(0, map_x - radius), min(self.map_width, map_x + radius)):
-                                for j in range(max(0, map_y - radius), min(self.map_height, map_y + radius)):
-                                    distance = np.sqrt((i - map_x)**2 + (j - map_y)**2)
-                                    if distance <= radius:
-                                        occupancy_data[j, i] = risk_value
-                            
-                            self.get_logger().info(f"위험도 맵에 추가: ({map_x}, {map_y}) - 점수: {risk_value}")
+                        if self.use_fixed_frame:
+                            # base_link 고정 모드: base_link 좌표를 그대로 사용
+                            world_x = base_x
+                            world_y = base_y
+                            self.get_logger().debug(f"base_link 고정 모드: 좌표 ({base_x:.2f}, {base_y:.2f})")
+                        else:
+                            # map 프레임 모드: base_link 좌표를 map 좌표로 변환
+                            try:
+                                # TF2 변환
+                                transform = self.tf_buffer.lookup_transform(
+                                    'map', 'base_link', 
+                                    self.get_clock().now(), 
+                                    rclpy.duration.Duration(seconds=0.1)
+                                )
+                                
+                                # 좌표 변환
+                                from tf2_geometry_msgs import do_transform_point
+                                from geometry_msgs.msg import PointStamped
+                                
+                                point = PointStamped()
+                                point.header.frame_id = 'base_link'
+                                point.header.stamp = self.get_clock().now().to_msg()
+                                point.point.x = base_x
+                                point.point.y = base_y
+                                point.point.z = 0.0
+                                
+                                transformed_point = do_transform_point(point, transform)
+                                world_x = transformed_point.point.x
+                                world_y = transformed_point.point.y
+                                
+                            except Exception as e:
+                                self.get_logger().debug(f"TF2 변환 오류: {str(e)}")
+                                # TF2 변환 실패 시 base_link 좌표를 그대로 사용
+                                world_x = base_x
+                                world_y = base_y
+                                self.get_logger().info(f"TF2 변환 실패, base_link 좌표 사용: ({base_x:.2f}, {base_y:.2f})")
+                        
+                        # 새로운 위험한 물체인지 확인 (중복 제거)
+                        is_new_object = True
+                        for obj in self.detected_objects:
+                            obj_x, obj_y, _, _ = obj
+                            distance = math.sqrt((world_x - obj_x)**2 + (world_y - obj_y)**2)
+                            if distance < 0.5:  # 50cm 이내면 같은 물체로 간주
+                                is_new_object = False
+                                break
+                        
+                        if is_new_object:
+                            # 새로운 위험한 물체 저장 (실제 위험도 포함)
+                            risk_score = detection.get('risk_score', 50)  # 기본 위험도
+                            self.detected_objects.append((world_x, world_y, time.time(), risk_score))
+                            frame_name = self.fixed_frame if self.use_fixed_frame else "map"
+                            self.get_logger().info(f"새로운 위험한 물체 발견: {frame_name} 좌표 ({world_x:.2f}, {world_y:.2f}) - 위험도: {risk_score}")
             
-            # 테스트 데이터 (실제 데이터가 없을 때)
-            if np.sum(occupancy_data) == 0:
-                center_x, center_y = self.map_width // 2, self.map_height // 2
-                radius = 30
+            # 저장된 모든 위험한 물체를 맵에 표시 (실제 위험도 반영)
+            for world_x, world_y, timestamp, risk_score in self.detected_objects:
+                map_x, map_y = self.world_to_map_coordinates(world_x, world_y)
                 
-                for i in range(max(0, center_x - radius), min(self.map_width, center_x + radius)):
-                    for j in range(max(0, center_y - radius), min(self.map_height, center_y + radius)):
-                        distance = np.sqrt((i - center_x)**2 + (j - center_y)**2)
-                        if distance <= radius:
-                            occupancy_data[j, i] = 50
-                
-                # 맵 경계선 추가
-                occupancy_data[0, :] = 25
-                occupancy_data[-1, :] = 25
-                occupancy_data[:, 0] = 25
-                occupancy_data[:, -1] = 25
+                if self.is_valid_map_coordinates(map_x, map_y):
+                    # 실제 위험도 계산 (시간 기반 감쇠)
+                    age = time.time() - timestamp
+                    if age < self.max_risk_age:
+                        # 시간에 따른 위험도 감쇠
+                        decay_factor = self.risk_decay_rate ** (age * 12)  # 12Hz 기준
+                        risk_value = int(risk_score * decay_factor)  # 저장된 위험도 사용
+                        
+                        # 위험도가 너무 낮으면 제거
+                        if risk_value < 10:
+                            continue
+                    else:
+                        continue  # 오래된 위험도는 제거
+                    
+                    # 위험한 물체 위치를 맵에 표시 (최적화된 원형 영역)
+                    radius = 2  # 더 작은 반지름으로 정확도 향상
+                    x_min = max(0, map_x - radius)
+                    x_max = min(self.map_width, map_x + radius)
+                    y_min = max(0, map_y - radius)
+                    y_max = min(self.map_height, map_y + radius)
+                    
+                    # 벡터화된 거리 계산
+                    x_coords, y_coords = np.meshgrid(
+                        np.arange(x_min, x_max), 
+                        np.arange(y_min, y_max)
+                    )
+                    distances = np.sqrt((x_coords - map_x)**2 + (y_coords - map_y)**2)
+                    mask = distances <= radius
+                    
+                    # 위험도에 따른 그라데이션 적용
+                    for i in range(y_min, y_max):
+                        for j in range(x_min, x_max):
+                            if mask[i-y_min, j-x_min]:
+                                # 거리에 따른 위험도 감소
+                                dist_factor = 1.0 - (distances[i-y_min, j-x_min] / radius)
+                                final_risk = int(risk_value * dist_factor)
+                                occupancy_data[i, j] = max(occupancy_data[i, j], final_risk)
             
-            # 디버그: 실제로 데이터가 추가되었는지 확인
-            self.get_logger().info(f"원형 테스트 영역: 중심({center_x},{center_y}), 반지름: {radius}")
-            self.get_logger().info(f"추가된 픽셀 수: {np.sum(occupancy_data > 0)}")
+            # 오래된 위험한 물체 제거 (30초 후)
+            current_time = time.time()
+            self.detected_objects = [(x, y, t, r) for x, y, t, r in self.detected_objects 
+                                   if current_time - t < 30.0]
             
             # 맵 메타데이터
             header = Header()
             header.stamp = self.get_clock().now().to_msg()
-            header.frame_id = "base_link"  # base_link 프레임으로 변경
+            header.frame_id = self.map_frame_id  # base_link로 고정
             
             # 맵 정보
             map_info = OccupancyGrid()
@@ -542,16 +637,12 @@ class RiskMappingNode(Node):
             # 발행
             self.risk_map_publisher.publish(map_info)
             
-            # 디버그 정보
-            max_risk = np.max(occupancy_data)
+            # 디버그 정보 (간소화)
             non_zero_count = np.sum(occupancy_data > 0)
-            self.get_logger().info(f"Risk Map 발행: 최대값={max_risk}, 0이 아닌 픽셀={non_zero_count}, 총 픽셀={len(map_data)}")
-            
-            # 추가 디버그: 실제 데이터 확인
-            if non_zero_count > 0:
-                self.get_logger().info(f"테스트 데이터가 성공적으로 추가됨: {non_zero_count}개 픽셀")
+            if len(self.detected_objects) > 0:
+                self.get_logger().debug(f"위험물체: {len(self.detected_objects)}개, 픽셀: {non_zero_count}개")
             else:
-                self.get_logger().warn("테스트 데이터가 추가되지 않음!")
+                self.get_logger().debug("위험한 물체 없음")
                 
         except Exception as e:
             self.get_logger().error(f"Risk Map 발행 오류: {str(e)}")

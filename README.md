@@ -116,6 +116,15 @@ ros2 topic info /risk_map
 ros2 topic echo /risk_map --once
 ```
 
+#### 좌표계 설정 확인
+```bash
+# 현재 좌표계 확인
+ros2 topic echo /risk_map --once | grep frame_id
+
+# TF2 프레임 확인
+ros2 run tf2_tools view_frames.py
+```
+
 #### 터미널에서 토픽 정보 확인
 ```bash
 # 토픽 정보 확인
@@ -145,6 +154,9 @@ ros2 topic list | grep risk
 - **발행 토픽**:
   - `/risk_map` (nav_msgs/OccupancyGrid)
   - `/risk_visualization` (sensor_msgs/Image)
+- **좌표계 설정**:
+  - `base_link` 고정 모드: 로봇 기준 고정 좌표계
+  - `map` 프레임 모드: 전역 좌표계 (TF2 변환 필요)
 
 ## 🎯 모델 정보
 - **YOLO 모델**: YOLOv11 nano (yolo11n.pt)
@@ -164,8 +176,10 @@ ros2 topic list | grep risk
 - **🎬 장면 설명**: 하단에 BLIP2가 생성한 장면 설명 표시
 
 ### Risk Map 기능
-- **🗺️ 실시간 맵 생성**: 100m x 100m 크기의 위험도 맵
+- **🗺️ 실시간 맵 생성**: 22.5m x 22.5m 크기의 위험도 맵 (15cm 해상도)
 - **📍 위치 기반 위험도**: 이미지 좌표를 월드 좌표로 변환하여 맵에 표시
+- **🔧 좌표계 설정**: base_link 고정 모드 또는 map 프레임 모드 선택 가능
+- **⚡ 고성능 처리**: 12Hz 업데이트 (목표: 10-15Hz), 이미지 다운샘플링, 벡터화 연산
 - **⏰ 시간 기반 감쇠**: 위험도가 시간에 따라 자동으로 감소 (30초 후 제거)
 - **📊 시각화**: Jet 컬러맵을 사용한 위험도 시각화
 - **📈 통계 정보**: 최대/평균 위험도, 히스토리 정보 표시
@@ -225,6 +239,33 @@ ros2 topic info /Camera/rgb
 # 노드 확인
 ros2 node list
 ros2 node info /yolo_blip2_risk_node
+```
+
+#### 6. 좌표계 문제 해결
+```bash
+# base_link 고정 모드 사용 (권장)
+# 코드에서 self.use_fixed_frame = True로 설정
+
+# map 프레임 사용 시 TF2 변환 확인
+ros2 run tf2_tools view_frames.py
+
+# TF2 변환 테스트
+ros2 run tf2_ros tf2_echo map base_link
+```
+
+#### 7. 성능 최적화 팁
+```bash
+# 맵 업데이트 주파수 확인 (목표: 10-15Hz)
+ros2 topic hz /risk_map
+
+# 처리 시간 모니터링
+ros2 topic echo /risk_map --once | grep stamp
+
+# 메모리 사용량 확인
+top -p $(pgrep -f risk_mapping)
+
+# 성능 로그 확인
+ros2 node info /risk_mapping_node
 ```
 
 ### 성능 최적화 팁

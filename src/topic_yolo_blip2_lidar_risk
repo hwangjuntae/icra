@@ -128,21 +128,47 @@ class YOLOBlip2RiskNode(Node):
         # 모델 초기화
         self.initialize_models()
         
-        # 위험도 카테고리 설정
+        # 위험도 카테고리 설정 (네비게이션 관점)
         self.risk_categories = {
-            "person": 40,
-            "chair": 20,
-            "desk": 15,
-            "laptop": 25,
-            "monitor": 20,
-            "keyboard": 10,
-            "mouse": 5,
-            "bottle": 30,
-            "cup": 35,
-            "scissors": 70,
-            "knife": 90,
-            "fire extinguisher": 10,
-            "default": 25
+            # 사람 관련 (가장 위험)
+            "person": 90,
+            "human": 90,
+            
+            # 동적 환경 (높은 위험)
+            "door": 70,      # 갑자기 열릴 수 있음
+            "window": 60,    # 사람이 나타날 수 있음
+            "curtain": 50,   # 뒤에 사람이 있을 수 있음
+            "blind": 50,     # 시야 차단
+            "mirror": 40,    # 반사로 인한 혼란
+            "glass": 65,     # 투명해서 놓칠 수 있음
+            
+            # 불안정한 물체 (중간 위험)
+            "bottle": 45,    # 넘어질 수 있음
+            "cup": 40,       # 넘어질 수 있음
+            "vase": 60,      # 깨질 수 있음
+            "plant": 35,     # 넘어질 수 있음
+            "book": 30,      # 떨어질 수 있음
+            "box": 40,       # 넘어질 수 있음
+            "bag": 35,       # 넘어질 수 있음
+            "chair": 50,     # 움직일 수 있음
+            "table": 45,     # 움직일 수 있음
+            "desk": 45,      # 움직일 수 있음
+            
+            # 전자기기 (중간 위험)
+            "laptop": 40,    # 움직일 수 있음
+            "monitor": 45,   # 넘어질 수 있음
+            "keyboard": 25,  # 움직일 수 있음
+            "mouse": 20,     # 움직일 수 있음
+            "phone": 30,     # 움직일 수 있음
+            "remote": 25,    # 움직일 수 있음
+            
+            # 안전장비 (낮은 위험)
+            "fire extinguisher": 15,  # 고정되어 있음
+            "exit": 10,      # 안전한 경로
+            "sign": 5,       # 정보 제공
+            
+            # 기본값
+            "default": 30
         }
         
         # 객체 인식 최적화 설정
@@ -155,7 +181,7 @@ class YOLOBlip2RiskNode(Node):
         self.min_distance = 0.3  # 최소 거리 (미터)
         self.distance_weight = 0.7  # 거리 가중치
         
-        self.get_logger().info("YOLO + BLIP2 위험도 평가 노드 시작 (최적화 버전)")
+        self.get_logger().info("YOLO + BLIP2 네비게이션 위험도 평가 노드 시작 (최적화 버전)")
         self.get_logger().info("구독 토픽: /Camera/rgb, /Lidar/laser_scan")
         self.get_logger().info("발행 토픽: /risk_assessment/image (sensor_msgs/Image)")
         self.get_logger().info(f"목표 처리 주파수: {self.target_fps}Hz ({self.frame_interval*1000:.1f}ms 간격)")
@@ -164,6 +190,7 @@ class YOLOBlip2RiskNode(Node):
         self.get_logger().info(f"거리 필터링: {self.min_distance}-{self.max_distance}m, 가중치={self.distance_weight}")
         self.get_logger().info(f"BLIP2 최적화: 배치크기={self.blip_batch_size}, 해상도={self.blip_resolution}, 캐시크기={self.cache_max_size}")
         self.get_logger().info(f"YOLO 모델 경로: {self.yolo_model_path}")
+        self.get_logger().info("BLIP2 네비게이션 위험도 평가: 사람, 동적 환경, 불안정한 물체 감지")
         
     def initialize_models(self):
         """모델 초기화"""
@@ -249,7 +276,7 @@ class YOLOBlip2RiskNode(Node):
                     cache_stats = self.get_cache_stats() if hasattr(self, 'cache_total_count') and self.cache_total_count > 0 else ""
                     blip_queue_size = len(self.blip_queue) if hasattr(self, 'blip_queue') else 0
                     
-                    self.get_logger().info(f"위험도 평가: {len(risk_results.get('detections', []))}개 객체 | "
+                    self.get_logger().info(f"BLIP2 네비게이션 위험도 평가: {len(risk_results.get('detections', []))}개 객체 | "
                                          f"처리: {processing_time:.1f}ms | FPS: {actual_fps:.1f} | "
                                          f"해상도: {processed_image.shape[1]}x{processed_image.shape[0]} | "
                                          f"BLIP 대기: {blip_queue_size} | {cache_stats}")
@@ -260,7 +287,7 @@ class YOLOBlip2RiskNode(Node):
                 self.get_logger().error("cv_bridge를 사용할 수 없어 이미지 전송 실패")
             
         except Exception as e:
-            self.get_logger().error(f"이미지 처리 오류: {str(e)}")
+            self.get_logger().error(f"BLIP2 네비게이션 위험도 평가 이미지 처리 오류: {str(e)}")
             traceback.print_exc()
             
     def downsample_image(self, image):
@@ -437,7 +464,7 @@ class YOLOBlip2RiskNode(Node):
             distance = detection.get('distance', 'N/A')
             
             label = f"{class_name} {confidence:.2f}"
-            risk_text = f"Risk: {risk_score:.1f} ({risk_level})"
+            risk_text = f"Navigation Risk: {risk_score:.1f} ({risk_level})"
             distance_text = f"Dist: {distance}m" if isinstance(distance, (int, float)) else f"Dist: {distance}"
             
             # 텍스트 배경 박스 크기 계산
@@ -464,7 +491,7 @@ class YOLOBlip2RiskNode(Node):
         detection_count = len(risk_results.get('detections', []))
         
         # 상단에 전체 정보 표시
-        info_text = f"Objects: {detection_count} | Overall Risk: {overall_risk:.1f} ({overall_level})"
+        info_text = f"Objects: {detection_count} | Navigation Risk: {overall_risk:.1f} ({overall_level})"
         
         # 정보 배경 박스
         (info_w, info_h), _ = cv2.getTextSize(info_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
@@ -490,7 +517,7 @@ class YOLOBlip2RiskNode(Node):
                          (20 + scene_w, height - 10), (0, 0, 0), -1)
             
             # 장면 설명 텍스트
-            cv2.putText(vis_image, scene_desc, (15, height - 15), 
+            cv2.putText(vis_image, f"Navigation Safety: {scene_desc}", (15, height - 15), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         return vis_image
@@ -502,7 +529,7 @@ class YOLOBlip2RiskNode(Node):
             "detections": [],
             "overall_risk_score": 0.0,
             "risk_level": "low",
-            "scene_description": "장면 분석 중..."
+            "scene_description": "네비게이션 안전성 분석 중..."
         }
         try:
             if self.yolo_model is not None:
@@ -558,6 +585,20 @@ class YOLOBlip2RiskNode(Node):
                         detections.append(detection_result)
                         total_risk += risk_score
                         detection_count += 1
+                        
+                        # BLIP2 분석을 위한 객체 이미지 추출 및 큐에 추가
+                        if self.blip_model is not None:
+                            try:
+                                # 객체 이미지 추출
+                                obj_image = image[int(y1):int(y2), int(x1):int(x2)]
+                                if obj_image.size > 0:  # 유효한 이미지인지 확인
+                                    self.blip_queue.append({
+                                        'image': obj_image,
+                                        'class_name': class_name,
+                                        'bbox_idx': len(detections) - 1  # 현재 인덱스
+                                    })
+                            except Exception as e:
+                                self.get_logger().debug(f"객체 이미지 추출 실패: {str(e)}")
                     
                     # 거리 기반 정렬 (가까운 객체 우선)
                     detections.sort(key=lambda d: d.get('distance', float('inf')) if d.get('distance') is not None else float('inf'))
@@ -571,19 +612,34 @@ class YOLOBlip2RiskNode(Node):
                         results["overall_risk_score"] = total_risk / detection_count
                         results["risk_level"] = self.get_risk_level(results["overall_risk_score"])
                         
-                        self.get_logger().info(f"YOLO 탐지: {detection_count}개 객체 (거리순 정렬)")
+                        self.get_logger().info(f"YOLO 탐지 + BLIP2 네비게이션 위험도 평가: {detection_count}개 객체 (거리순 정렬)")
             
-            # 배치 처리로 BLIP2 분석 수행
+            # BLIP2 분석 수행 및 결과 반영
             if self.blip_model is not None and self.blip_queue:
-                # 비동기로 배치 처리 시작
-                self.thread_executor.submit(self.process_blip_batch, self.blip_queue.copy(), results)
+                # 동기적으로 BLIP2 처리 (실시간 반영을 위해)
+                self.process_blip_batch_sync(self.blip_queue.copy(), results)
                 self.blip_queue.clear()
+                
+                # BLIP2 결과로 최종 위험도 재계산
+                if results["detections"]:
+                    total_blip_risk = 0.0
+                    valid_detections = 0
+                    
+                    for detection in results["detections"]:
+                        if 'risk_score' in detection:
+                            total_blip_risk += detection['risk_score']
+                            valid_detections += 1
+                    
+                    if valid_detections > 0:
+                        results["overall_risk_score"] = total_blip_risk / valid_detections
+                        results["risk_level"] = self.get_risk_level(results["overall_risk_score"])
+                        self.get_logger().info(f"BLIP2 위험도 재계산: {results['overall_risk_score']:.1f} ({results['risk_level']})")
                 
                 # 전체 장면 설명
                 results["scene_description"] = self.get_scene_description(image)
                 
         except Exception as e:
-            self.get_logger().error(f"위험도 평가 오류: {str(e)}")
+            self.get_logger().error(f"BLIP2 네비게이션 위험도 평가 오류: {str(e)}")
             traceback.print_exc()
             
         return results
@@ -689,8 +745,8 @@ class YOLOBlip2RiskNode(Node):
                 pil_img = PILImage.fromarray(rgb_img)
                 
                 batch_images.append(pil_img)
-                # 위험도 평가 특화 프롬프트
-                prompt = f"Is this {obj_info['class_name']} object dangerous or safe? Explain the safety risk level."
+                # 네비게이션 위험도 평가 특화 프롬프트
+                prompt = f"Is this {obj_info['class_name']} object likely to move, fall, or cause navigation issues? Assess the navigation risk level."
                 batch_prompts.append(prompt)
             
             # 배치 처리
@@ -722,46 +778,153 @@ class YOLOBlip2RiskNode(Node):
         except Exception as e:
             self.get_logger().error(f"객체 배치 처리 오류: {str(e)}")
             
+    def process_blip_batch_sync(self, batch_objects, results):
+        """동기적으로 BLIP2 배치 처리 (실시간 반영)"""
+        try:
+            if not batch_objects or self.blip_model is None:
+                return
+                
+            # 캐시 확인 및 새로 처리할 객체 분리
+            cache_hits = 0
+            to_process = []
+            
+            for obj_info in batch_objects:
+                obj_hash = self.get_object_hash(obj_info['image'])
+                cached_result = self.get_cached_result(obj_hash)
+                
+                if cached_result is not None:
+                    # 캐시 히트
+                    cache_hits += 1
+                    bbox_idx = obj_info['bbox_idx']
+                    if bbox_idx < len(results['detections']):
+                        results['detections'][bbox_idx]['description'] = cached_result
+                        results['detections'][bbox_idx]['risk_score'] = self.calculate_blip_risk_score(cached_result)
+                        results['detections'][bbox_idx]['risk_level'] = self.get_risk_level(results['detections'][bbox_idx]['risk_score'])
+                else:
+                    to_process.append((obj_info, obj_hash))
+            
+            if cache_hits > 0:
+                self.get_logger().info(f"BLIP2 캐시 히트: {cache_hits}개 객체")
+            
+            # 새로 처리할 객체들을 배치로 처리
+            if to_process:
+                batch_size = min(len(to_process), self.blip_batch_size)
+                for i in range(0, len(to_process), batch_size):
+                    batch = to_process[i:i + batch_size]
+                    self.process_object_batch_sync(batch, results)
+                    
+        except Exception as e:
+            self.get_logger().error(f"동기 BLIP2 배치 처리 오류: {str(e)}")
+            
+    def process_object_batch_sync(self, batch, results):
+        """동기적으로 객체 배치 BLIP2 처리"""
+        try:
+            if not batch or self.blip_model is None:
+                return
+                
+            # 배치 이미지 준비
+            batch_images = []
+            batch_prompts = []
+            
+            for obj_info, obj_hash in batch:
+                # 해상도 최적화
+                optimized_img = self.optimize_image_for_blip(obj_info['image'])
+                rgb_img = cv2.cvtColor(optimized_img, cv2.COLOR_BGR2RGB)
+                pil_img = PILImage.fromarray(rgb_img)
+                
+                batch_images.append(pil_img)
+                # 네비게이션 위험도 평가 특화 프롬프트
+                prompt = f"Is this {obj_info['class_name']} object likely to move, fall, or cause navigation issues? Assess the navigation risk level."
+                batch_prompts.append(prompt)
+            
+            # 배치 처리
+            inputs = self.blip_processor(batch_images, batch_prompts, return_tensors="pt", padding=True).to(self.device)
+            
+            # FP16 처리
+            if self.device.type == 'cuda':
+                for key in inputs:
+                    if inputs[key].dtype == torch.float32:
+                        inputs[key] = inputs[key].half()
+            
+            with torch.no_grad():
+                outputs = self.blip_model.generate(**inputs, max_length=100, do_sample=False)
+            
+            # 결과 처리
+            descriptions = [self.blip_processor.decode(output, skip_special_tokens=True) for output in outputs]
+            
+            for i, ((obj_info, obj_hash), description) in enumerate(zip(batch, descriptions)):
+                # 결과 캐시
+                self.cache_result(obj_hash, description)
+                
+                # 결과 업데이트
+                bbox_idx = obj_info['bbox_idx']
+                if bbox_idx < len(results['detections']):
+                    blip_risk_score = self.calculate_blip_risk_score(description)
+                    results['detections'][bbox_idx]['description'] = description
+                    results['detections'][bbox_idx]['risk_score'] = blip_risk_score
+                    results['detections'][bbox_idx]['risk_level'] = self.get_risk_level(blip_risk_score)
+                    
+                    # BLIP2 결과 로그
+                    class_name = obj_info['class_name']
+                    self.get_logger().info(f"BLIP2 분석: {class_name} -> {description[:50]}... (위험도: {blip_risk_score:.1f})")
+                    
+        except Exception as e:
+            self.get_logger().error(f"동기 객체 배치 처리 오류: {str(e)}")
+            
     def calculate_blip_risk_score(self, description):
-        """BLIP2 설명에서 위험도 점수 계산"""
+        """BLIP2 설명에서 네비게이션 위험도 점수 계산"""
         description_lower = description.lower()
         
-        # 위험 키워드 점수
-        danger_keywords = {
-            'dangerous': 80, 'unsafe': 70, 'hazardous': 85, 'risky': 60,
-            'sharp': 75, 'hot': 70, 'fire': 90, 'toxic': 95, 'poisonous': 90,
-            'knife': 85, 'blade': 80, 'cutting': 70, 'weapon': 90
+        # 네비게이션 위험 키워드 점수
+        navigation_danger_keywords = {
+            'move': 60, 'moving': 65, 'unstable': 70, 'wobbly': 75, 'shaky': 70,
+            'fall': 80, 'falling': 85, 'tipping': 75, 'unbalanced': 70,
+            'block': 50, 'blocking': 55, 'obstacle': 60, 'blocked': 55,
+            'dynamic': 65, 'changing': 60, 'unpredictable': 80,
+            'crowded': 70, 'busy': 60, 'traffic': 65,
+            'narrow': 50, 'tight': 55, 'confined': 60,
+            'slippery': 75, 'wet': 70, 'smooth': 45,
+            'hidden': 65, 'concealed': 60, 'behind': 50,
+            'sudden': 80, 'unexpected': 85, 'surprise': 75,
+            'collision': 90, 'crash': 95, 'impact': 85
         }
         
-        safe_keywords = {
-            'safe': -30, 'harmless': -25, 'secure': -20, 'non-toxic': -40,
-            'blunt': -20, 'soft': -15, 'gentle': -10
+        # 안전 키워드 점수 (위험도 감소)
+        navigation_safe_keywords = {
+            'stable': -30, 'fixed': -25, 'secure': -20, 'stationary': -35,
+            'safe': -20, 'clear': -15, 'open': -10, 'wide': -15,
+            'static': -30, 'immobile': -35, 'anchored': -40,
+            'predictable': -25, 'consistent': -20, 'reliable': -15
         }
         
-        base_score = 25  # 기본 점수
+        base_score = 30  # 기본 점수 (네비게이션 관점)
         
-        for keyword, score in danger_keywords.items():
+        for keyword, score in navigation_danger_keywords.items():
             if keyword in description_lower:
-                base_score += score * 0.5  # 가중치 적용
+                base_score += score * 0.6  # 가중치 적용
                 
-        for keyword, score in safe_keywords.items():
+        for keyword, score in navigation_safe_keywords.items():
             if keyword in description_lower:
-                base_score += score * 0.3  # 가중치 적용
+                base_score += score * 0.4  # 가중치 적용
                 
         return max(0, min(100, base_score))
         
     def calculate_risk_score(self, class_name, confidence):
-        """위험도 점수 계산"""
+        """네비게이션 위험도 점수 계산"""
         base_score = self.risk_categories.get(class_name, self.risk_categories["default"])
         
         # 신뢰도 가중치 적용
-        confidence_weight = confidence * 20
+        confidence_weight = confidence * 15
         
-        # 특정 객체별 위험도 조정
-        if class_name in ["scissors", "knife"]:
-            adjustment = 30
-        elif class_name == "fire extinguisher":
-            adjustment = -20
+        # 네비게이션 관점에서 특정 객체별 위험도 조정
+        if class_name in ["person", "human"]:
+            adjustment = 20  # 사람은 가장 위험
+        elif class_name in ["door", "window", "glass"]:
+            adjustment = 15  # 동적 환경 요소
+        elif class_name in ["bottle", "cup", "vase", "plant"]:
+            adjustment = 10  # 넘어질 수 있는 물체
+        elif class_name in ["fire extinguisher", "exit", "sign"]:
+            adjustment = -10  # 안전장비는 위험도 감소
         else:
             adjustment = 0
             
@@ -782,7 +945,7 @@ class YOLOBlip2RiskNode(Node):
         return f"{class_name} 객체 (배치 처리 중)"
             
     def get_scene_description(self, image):
-        """전체 장면 설명 생성 (최적화됨)"""
+        """전체 장면 설명 생성 (네비게이션 위험도 관점)"""
         if self.blip_model is None:
             return "장면 설명을 생성할 수 없습니다."
             
@@ -792,8 +955,8 @@ class YOLOBlip2RiskNode(Node):
             rgb_image = cv2.cvtColor(optimized_img, cv2.COLOR_BGR2RGB)
             pil_image = PILImage.fromarray(rgb_image)
             
-            # 안전성 특화 프롬프트
-            prompt = "Describe the overall safety situation in this scene. Are there any potential hazards?"
+            # 네비게이션 안전성 특화 프롬프트
+            prompt = "Describe the navigation safety of this scene. Are there moving objects, unstable items, or potential collision risks for a robot?"
             
             # BLIP2로 장면 설명 생성
             inputs = self.blip_processor(pil_image, prompt, return_tensors="pt").to(self.device)

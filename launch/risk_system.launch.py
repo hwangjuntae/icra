@@ -8,8 +8,18 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
+from ament_index_python.packages import get_package_share_directory
+import os
 
 def generate_launch_description():
+    # RViz 설정 파일 경로
+    rviz_config_file = os.path.join(
+        get_package_share_directory('risk_nav'),
+        'rviz',
+        'config.rviz'
+    )
+    
     return LaunchDescription([
         # Launch Arguments
         DeclareLaunchArgument(
@@ -31,6 +41,11 @@ def generate_launch_description():
             'risk_map_topic',
             default_value='/risk_map',
             description='Risk Map 토픽'
+        ),
+        DeclareLaunchArgument(
+            'use_rviz',
+            default_value='true',
+            description='RViz 실행 여부'
         ),
 
         
@@ -68,5 +83,14 @@ def generate_launch_description():
                 ('/Lidar/laser_scan', LaunchConfiguration('lidar_topic')),
                 ('/risk_map', LaunchConfiguration('risk_map_topic')),
             ]
+        ),
+        
+        # RViz 노드 (risk map 시각화용)
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            arguments=['-d', rviz_config_file],
+            output='screen'
         ),
     ]) 
