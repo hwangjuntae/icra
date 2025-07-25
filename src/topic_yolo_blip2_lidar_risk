@@ -168,7 +168,16 @@ class YOLOBlip2RiskNode(Node):
             "sign": 5,       # 정보 제공
             
             # 기본값
-            "default": 30
+            "default": {
+                "base_risk": 30,
+                "weight": "unknown",
+                "temperature": "unknown",
+                "stability": "unknown",
+                "fragility": "unknown",
+                "size": "unknown",
+                "movement_speed": "unknown",
+                "description": "알 수 없는 물체"
+            }
         }
         
         # 객체 인식 최적화 설정
@@ -181,6 +190,251 @@ class YOLOBlip2RiskNode(Node):
         self.min_distance = 0.3  # 최소 거리 (미터)
         self.distance_weight = 0.7  # 거리 가중치
         
+        # 위험도 카테고리 설정 (물체 기반 물리적 특성 고려)
+        self.object_risk_profiles = {
+            # 사람 관련 (가장 위험)
+            "person": {
+                "base_risk": 90,
+                "weight": "variable",  # 사람 무게 (50-100kg)
+                "temperature": "body_temp",  # 체온
+                "stability": "dynamic",  # 움직일 수 있음
+                "fragility": "high",  # 부상 위험
+                "size": "large",
+                "movement_speed": "variable",
+                "description": "사람 - 가장 높은 위험도, 동적 움직임"
+            },
+            "human": {
+                "base_risk": 90,
+                "weight": "variable",
+                "temperature": "body_temp",
+                "stability": "dynamic",
+                "fragility": "high",
+                "size": "large",
+                "movement_speed": "variable",
+                "description": "사람 - 가장 높은 위험도, 동적 움직임"
+            },
+            
+            # 뜨거운 물체 (높은 위험)
+            "cup": {
+                "base_risk": 40,
+                "weight": "light",  # 0.2-0.5kg
+                "temperature": "hot",  # 뜨거운 액체
+                "stability": "unstable",  # 넘어질 수 있음
+                "fragility": "medium",  # 깨질 수 있음
+                "size": "small",
+                "movement_speed": "static",
+                "description": "뜨거운 컵 - 넘어지면 화상 위험"
+            },
+            "mug": {
+                "base_risk": 45,
+                "weight": "light",
+                "temperature": "hot",
+                "stability": "unstable",
+                "fragility": "medium",
+                "size": "small",
+                "movement_speed": "static",
+                "description": "뜨거운 머그컵 - 넘어지면 화상 위험"
+            },
+            "kettle": {
+                "base_risk": 80,
+                "weight": "medium",  # 1-2kg
+                "temperature": "very_hot",  # 매우 뜨거움
+                "stability": "stable",  # 상대적으로 안정적
+                "fragility": "low",  # 금속으로 만들어짐
+                "size": "medium",
+                "movement_speed": "static",
+                "description": "전기주전자 - 매우 뜨거운 물, 화상 위험"
+            },
+            
+            # 무거운 물체 (중간-높은 위험)
+            "chair": {
+                "base_risk": 50,
+                "weight": "heavy",  # 5-15kg
+                "temperature": "room_temp",
+                "stability": "movable",  # 움직일 수 있음
+                "fragility": "low",  # 튼튼함
+                "size": "large",
+                "movement_speed": "slow",
+                "description": "의자 - 무거워서 충돌 시 위험"
+            },
+            "table": {
+                "base_risk": 45,
+                "weight": "very_heavy",  # 20-50kg
+                "temperature": "room_temp",
+                "stability": "stable",  # 상대적으로 안정적
+                "fragility": "low",
+                "size": "very_large",
+                "movement_speed": "static",
+                "description": "테이블 - 매우 무거움, 충돌 시 위험"
+            },
+            "desk": {
+                "base_risk": 45,
+                "weight": "very_heavy",  # 30-80kg
+                "temperature": "room_temp",
+                "stability": "stable",
+                "fragility": "low",
+                "size": "very_large",
+                "movement_speed": "static",
+                "description": "책상 - 매우 무거움, 충돌 시 위험"
+            },
+            
+            # 깨지기 쉬운 물체 (중간 위험)
+            "vase": {
+                "base_risk": 60,
+                "weight": "medium",  # 1-3kg
+                "temperature": "room_temp",
+                "stability": "unstable",  # 넘어지기 쉬움
+                "fragility": "very_high",  # 매우 깨지기 쉬움
+                "size": "medium",
+                "movement_speed": "static",
+                "description": "화분 - 깨지기 쉬움, 파편 위험"
+            },
+            "bottle": {
+                "base_risk": 45,
+                "weight": "light",  # 0.5-1kg
+                "temperature": "variable",  # 내용물에 따라
+                "stability": "unstable",
+                "fragility": "medium",
+                "size": "small",
+                "movement_speed": "static",
+                "description": "병 - 넘어지기 쉬움, 깨질 수 있음"
+            },
+            "glass": {
+                "base_risk": 70,
+                "weight": "light",
+                "temperature": "variable",
+                "stability": "unstable",
+                "fragility": "very_high",
+                "size": "small",
+                "movement_speed": "static",
+                "description": "유리 - 매우 깨지기 쉬움, 파편 위험"
+            },
+            
+            # 전자기기 (중간 위험)
+            "laptop": {
+                "base_risk": 40,
+                "weight": "medium",  # 1-3kg
+                "temperature": "warm",  # 사용 시 따뜻함
+                "stability": "movable",
+                "fragility": "high",  # 전자기기
+                "size": "medium",
+                "movement_speed": "static",
+                "description": "노트북 - 전자기기, 손상 시 위험"
+            },
+            "monitor": {
+                "base_risk": 45,
+                "weight": "heavy",  # 3-8kg
+                "temperature": "warm",
+                "stability": "stable",
+                "fragility": "high",
+                "size": "large",
+                "movement_speed": "static",
+                "description": "모니터 - 무거운 전자기기"
+            },
+            
+            # 작은 물체 (낮은 위험)
+            "book": {
+                "base_risk": 30,
+                "weight": "light",  # 0.5-2kg
+                "temperature": "room_temp",
+                "stability": "stable",
+                "fragility": "low",
+                "size": "small",
+                "movement_speed": "static",
+                "description": "책 - 상대적으로 안전"
+            },
+            "phone": {
+                "base_risk": 30,
+                "weight": "very_light",  # 0.1-0.3kg
+                "temperature": "warm",
+                "stability": "movable",
+                "fragility": "high",
+                "size": "small",
+                "movement_speed": "static",
+                "description": "휴대폰 - 작지만 전자기기"
+            },
+            
+            # 안전장비 (낮은 위험)
+            "fire extinguisher": {
+                "base_risk": 15,
+                "weight": "heavy",  # 3-6kg
+                "temperature": "room_temp",
+                "stability": "stable",  # 고정되어 있음
+                "fragility": "low",
+                "size": "medium",
+                "movement_speed": "static",
+                "description": "소화기 - 안전장비, 고정됨"
+            },
+            
+            # 기본값
+            "default": {
+                "base_risk": 30,
+                "weight": "unknown",
+                "temperature": "unknown",
+                "stability": "unknown",
+                "fragility": "unknown",
+                "size": "unknown",
+                "movement_speed": "unknown",
+                "description": "알 수 없는 물체"
+            }
+        }
+        
+        # 무게 및 위험도 특성별 가중치
+        self.weight_risk_weights = {
+            "weight": {
+                "very_light": 0.4,     # 0.5kg 이하
+                "light": 0.7,          # 0.5-2kg
+                "medium": 1.0,         # 2-8kg
+                "heavy": 1.4,          # 8-20kg
+                "very_heavy": 1.8      # 20kg 이상
+            },
+            "risk_type": {
+                "static": 0.8,         # 정적 물체
+                "dynamic": 1.3,        # 동적 물체
+                "human": 1.6,          # 사람
+                "sudden": 1.5,         # 돌발 상황
+                "environmental": 0.9   # 환경 요소
+            },
+            "mobility": {
+                "stationary": 0.8,     # 고정됨
+                "movable": 1.2,        # 움직일 수 있음
+                "mobile": 1.4,         # 이동 가능
+                "unpredictable": 1.6   # 예측 불가능
+            },
+            "stability": {
+                "stable": 0.8,         # 안정적
+                "unstable": 1.4,       # 불안정
+                "precarious": 1.3,     # 불안정
+                "dynamic": 1.5         # 동적
+            },
+            "danger_level": {
+                "safe": 0.5,           # 안전
+                "low_risk": 0.8,       # 낮은 위험
+                "medium_risk": 1.0,    # 보통 위험
+                "high_risk": 1.4,      # 높은 위험
+                "extremely_dangerous": 1.8  # 매우 위험
+            },
+            "size": {
+                "very_small": 0.5,     # 매우 작음
+                "small": 0.8,          # 작음
+                "medium": 1.0,         # 보통
+                "large": 1.3,          # 큼
+                "very_large": 1.6      # 매우 큼
+            }
+        }
+        
+        # 거리 기반 위험도 계산 개선
+        self.distance_risk_model = {
+            "very_close": 2.0,    # 0-0.5m: 매우 위험
+            "close": 1.5,          # 0.5-1m: 위험
+            "medium": 1.2,         # 1-2m: 보통
+            "far": 1.0,            # 2-3m: 안전
+            "very_far": 0.8        # 3m 이상: 매우 안전
+        }
+        
+        # 물리적 특성 분석 방법 설정
+        self.analysis_method = 'blip2'  # 'blip2' 또는 'computer_vision'
+        
         self.get_logger().info("YOLO + BLIP2 네비게이션 위험도 평가 노드 시작 (최적화 버전)")
         self.get_logger().info("구독 토픽: /Camera/rgb, /Lidar/laser_scan")
         self.get_logger().info("발행 토픽: /risk_assessment/image (sensor_msgs/Image)")
@@ -190,7 +444,8 @@ class YOLOBlip2RiskNode(Node):
         self.get_logger().info(f"거리 필터링: {self.min_distance}-{self.max_distance}m, 가중치={self.distance_weight}")
         self.get_logger().info(f"BLIP2 최적화: 배치크기={self.blip_batch_size}, 해상도={self.blip_resolution}, 캐시크기={self.cache_max_size}")
         self.get_logger().info(f"YOLO 모델 경로: {self.yolo_model_path}")
-        self.get_logger().info("BLIP2 네비게이션 위험도 평가: 사람, 동적 환경, 불안정한 물체 감지")
+        self.get_logger().info("무게 및 위험도 특성 기반 위험도 평가 시스템")
+        self.get_logger().info("BLIP2 통합 분석: 무게, 위험유형, 이동성, 위험도 레벨을 한 번에 분석")
         
     def initialize_models(self):
         """모델 초기화"""
@@ -463,27 +718,48 @@ class YOLOBlip2RiskNode(Node):
             risk_score = detection['risk_score']
             distance = detection.get('distance', 'N/A')
             
+            # 무게 및 위험도 특성 정보 생성
+            try:
+                # BLIP2로 무게와 위험도 특성 분석
+                properties = self.analyze_weight_and_risk_properties(image, class_name, detection['bbox'])
+                
+                weight_info = f"W:{properties['weight']}"
+                risk_type_info = f"R:{properties['risk_type']}"
+                mobility_info = f"M:{properties['mobility']}"
+                danger_info = f"D:{properties['danger_level']}"
+            except Exception as e:
+                # 분석 실패 시 기본 정보 사용
+                profile = self.object_risk_profiles.get(class_name, self.object_risk_profiles["default"])
+                weight_info = f"W:{profile['weight']}" if profile['weight'] != 'unknown' else ""
+                risk_type_info = ""
+                mobility_info = ""
+                danger_info = ""
+            
             label = f"{class_name} {confidence:.2f}"
-            risk_text = f"Navigation Risk: {risk_score:.1f} ({risk_level})"
+            risk_text = f"Risk: {risk_score:.1f} ({risk_level})"
             distance_text = f"Dist: {distance}m" if isinstance(distance, (int, float)) else f"Dist: {distance}"
+            physics_text = f"{weight_info} {risk_type_info} {mobility_info} {danger_info}".strip()
             
             # 텍스트 배경 박스 크기 계산
             (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
             (risk_w, risk_h), _ = cv2.getTextSize(risk_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
             (dist_w, dist_h), _ = cv2.getTextSize(distance_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+            (physics_w, physics_h), _ = cv2.getTextSize(physics_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
             
             # 텍스트 배경 박스 그리기
-            max_text_w = max(label_w, risk_w, dist_w)
-            cv2.rectangle(vis_image, (x1, y1 - label_h - risk_h - dist_h - 15), 
+            max_text_w = max(label_w, risk_w, dist_w, physics_w)
+            cv2.rectangle(vis_image, (x1, y1 - label_h - risk_h - dist_h - physics_h - 20), 
                          (x1 + max_text_w + 10, y1), color, -1)
             
             # 텍스트 그리기
-            cv2.putText(vis_image, label, (x1 + 5, y1 - dist_h - risk_h - 10), 
+            cv2.putText(vis_image, label, (x1 + 5, y1 - dist_h - risk_h - physics_h - 15), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-            cv2.putText(vis_image, risk_text, (x1 + 5, y1 - dist_h - 5), 
+            cv2.putText(vis_image, risk_text, (x1 + 5, y1 - dist_h - physics_h - 10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
-            cv2.putText(vis_image, distance_text, (x1 + 5, y1 - 5), 
+            cv2.putText(vis_image, distance_text, (x1 + 5, y1 - physics_h - 5), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 1)
+            cv2.putText(vis_image, physics_text, (x1 + 5, y1 - 5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 0), 1)
         
         # 전체 위험도 정보 표시
         overall_risk = risk_results.get('overall_risk_score', 0)
@@ -567,8 +843,9 @@ class YOLOBlip2RiskNode(Node):
                         if distance is not None and (distance < self.min_distance or distance > self.max_distance):
                             continue
                         
-                        # 위험도 점수 계산 (거리 가중치 적용)
-                        risk_score = self.calculate_risk_score_with_distance(class_name, confidence, distance)
+                        # 동적 물리적 특성을 고려한 위험도 점수 계산
+                        bbox = {"x1": float(x1), "y1": float(y1), "x2": float(x2), "y2": float(y2)}
+                        risk_score = self.calculate_risk_score_with_distance(class_name, confidence, distance, image, bbox)
                         risk_level = self.get_risk_level(risk_score)
                         
                         detection_result = {
@@ -680,17 +957,85 @@ class YOLOBlip2RiskNode(Node):
             
         return None
         
-    def calculate_risk_score_with_distance(self, class_name, confidence, distance):
-        """거리 가중치를 적용한 위험도 점수 계산"""
-        # 기본 위험도 점수
-        base_score = self.calculate_risk_score(class_name, confidence)
+    def calculate_risk_score_with_distance(self, class_name, confidence, distance, image=None, bbox=None):
+        """동적 물리적 특성을 고려한 거리 위험도 점수 계산"""
+        # 기본 위험도 점수 (동적 물리적 특성 포함)
+        base_score = self.calculate_risk_score(class_name, confidence, image, bbox)
         
-        # 거리 가중치 적용
+        # 거리 기반 위험도 계산 (개선된 모델)
         if distance is not None:
-            # 거리가 가까울수록 위험도 증가
-            distance_factor = max(0.5, 2.0 - (distance / self.max_distance))
-            base_score *= distance_factor
+            # 거리 구간별 위험도 가중치
+            if distance <= 0.5:
+                distance_factor = self.distance_risk_model["very_close"]
+            elif distance <= 1.0:
+                distance_factor = self.distance_risk_model["close"]
+            elif distance <= 2.0:
+                distance_factor = self.distance_risk_model["medium"]
+            elif distance <= 3.0:
+                distance_factor = self.distance_risk_model["far"]
+            else:
+                distance_factor = self.distance_risk_model["very_far"]
             
+            # 무게 및 위험도 특성에 따른 거리 가중치 조정
+            if image is not None and bbox is not None:
+                try:
+                    properties = self.analyze_weight_and_risk_properties(image, class_name, bbox)
+                    
+                    if properties["risk_type"] == "human":
+                        # 사람은 가까울 때 매우 위험
+                        if distance <= 2.0:
+                            distance_factor *= 1.6
+                    elif properties["risk_type"] == "sudden":
+                        # 돌발 상황은 가까울 때 매우 위험
+                        if distance <= 1.5:
+                            distance_factor *= 1.5
+                    elif properties["mobility"] == "unpredictable":
+                        # 예측 불가능한 물체는 가까울 때 위험
+                        if distance <= 1.0:
+                            distance_factor *= 1.4
+                    elif properties["stability"] == "unstable":
+                        # 불안정한 물체는 가까울 때 위험
+                        if distance <= 1.0:
+                            distance_factor *= 1.3
+                    elif properties["weight"] in ["heavy", "very_heavy"]:
+                        # 무거운 물체는 충돌 시 위험
+                        if distance <= 2.0:
+                            distance_factor *= 1.2
+                    elif properties["danger_level"] == "extremely_dangerous":
+                        # 매우 위험한 물체는 가까울 때 위험
+                        if distance <= 1.5:
+                            distance_factor *= 1.4
+                except Exception as e:
+                    self.get_logger().error(f"거리 가중치 조정 실패: {str(e)}")
+            else:
+                # 기본 프로파일 사용
+                profile = self.object_risk_profiles.get(class_name, self.object_risk_profiles["default"])
+                if profile["stability"] == "unstable":
+                    if distance <= 1.0:
+                        distance_factor *= 1.3
+                elif profile["weight"] in ["heavy", "very_heavy"]:
+                    if distance <= 2.0:
+                        distance_factor *= 1.2
+            
+            base_score *= distance_factor
+        
+        # 물체별 특수 위험도 조정
+        if properties.get("risk_type") == "human" and distance is not None and distance <= 2.0:
+            # 사람은 동적 움직임으로 인한 위험
+            base_score *= 1.6
+        elif properties.get("risk_type") == "sudden" and distance is not None and distance <= 1.5:
+            # 돌발 상황은 예측 불가능한 위험
+            base_score *= 1.5
+        elif properties.get("mobility") == "unpredictable" and distance is not None and distance <= 1.0:
+            # 예측 불가능한 물체는 돌발 위험
+            base_score *= 1.4
+        elif properties.get("weight") in ["heavy", "very_heavy"] and distance is not None and distance <= 2.0:
+            # 무거운 물체는 충돌 시 심각한 위험
+            base_score *= 1.3
+        elif properties.get("danger_level") == "extremely_dangerous" and distance is not None and distance <= 1.5:
+            # 매우 위험한 물체는 즉시 회피 필요
+            base_score *= 1.7
+        
         return max(0, min(100, base_score))
         
     def process_blip_batch(self, batch_objects, results):
@@ -859,14 +1204,9 @@ class YOLOBlip2RiskNode(Node):
                 # 결과 업데이트
                 bbox_idx = obj_info['bbox_idx']
                 if bbox_idx < len(results['detections']):
-                    blip_risk_score = self.calculate_blip_risk_score(description)
                     results['detections'][bbox_idx]['description'] = description
-                    results['detections'][bbox_idx]['risk_score'] = blip_risk_score
-                    results['detections'][bbox_idx]['risk_level'] = self.get_risk_level(blip_risk_score)
-                    
-                    # BLIP2 결과 로그
-                    class_name = obj_info['class_name']
-                    self.get_logger().info(f"BLIP2 분석: {class_name} -> {description[:50]}... (위험도: {blip_risk_score:.1f})")
+                    results['detections'][bbox_idx]['risk_score'] = self.calculate_blip_risk_score(description)
+                    results['detections'][bbox_idx]['risk_level'] = self.get_risk_level(results['detections'][bbox_idx]['risk_score'])
                     
         except Exception as e:
             self.get_logger().error(f"동기 객체 배치 처리 오류: {str(e)}")
@@ -909,9 +1249,61 @@ class YOLOBlip2RiskNode(Node):
                 
         return max(0, min(100, base_score))
         
-    def calculate_risk_score(self, class_name, confidence):
-        """네비게이션 위험도 점수 계산"""
-        base_score = self.risk_categories.get(class_name, self.risk_categories["default"])
+    def calculate_risk_score(self, class_name, confidence, image=None, bbox=None):
+        """무게와 위험도 특성을 고려한 네비게이션 위험도 점수 계산"""
+        # 기본 위험도 점수
+        base_score = 30  # 기본값
+        
+        # 무게와 위험도 특성 분석 (이미지가 제공된 경우)
+        if image is not None and bbox is not None:
+            try:
+                # BLIP2로 무게와 위험도 특성 분석
+                properties = self.analyze_weight_and_risk_properties(image, class_name, bbox)
+                
+                # 무게 및 위험도 특성별 가중치 적용
+                weight_factor = self.weight_risk_weights["weight"].get(properties["weight"], 1.0)
+                risk_type_factor = self.weight_risk_weights["risk_type"].get(properties["risk_type"], 1.0)
+                mobility_factor = self.weight_risk_weights["mobility"].get(properties["mobility"], 1.0)
+                stability_factor = self.weight_risk_weights["stability"].get(properties["stability"], 1.0)
+                danger_factor = self.weight_risk_weights["danger_level"].get(properties["danger_level"], 1.0)
+                size_factor = self.weight_risk_weights["size"].get(properties["size"], 1.0)
+                
+                # 기본 위험도 계산 (물체 종류별)
+                if class_name in ["person", "human"]:
+                    base_score = 90
+                elif properties["risk_type"] == "human":
+                    base_score = 85
+                elif properties["risk_type"] == "sudden":
+                    base_score = 75
+                elif properties["risk_type"] == "dynamic":
+                    base_score = 65
+                elif properties["danger_level"] == "extremely_dangerous":
+                    base_score = 80
+                elif properties["danger_level"] == "high_risk":
+                    base_score = 60
+                elif properties["mobility"] == "unpredictable":
+                    base_score = 70
+                else:
+                    base_score = 30
+                
+                # 무게 및 위험도 특성 가중치 적용
+                base_score *= weight_factor * risk_type_factor * mobility_factor * stability_factor * danger_factor * size_factor
+                
+                self.get_logger().debug(f"무게/위험도 분석: {class_name} - 무게:{properties['weight']}, 위험유형:{properties['risk_type']}, 이동성:{properties['mobility']}, 위험도:{base_score:.1f}")
+                
+            except Exception as e:
+                self.get_logger().error(f"무게/위험도 특성 분석 실패: {str(e)}")
+                # 실패 시 기본 위험도 사용
+                base_score = 30
+        else:
+            # 이미지가 없는 경우 기본 프로파일 사용
+            profile = self.object_risk_profiles.get(class_name, self.object_risk_profiles["default"])
+            base_score = profile["base_risk"]
+            
+            # 기본 가중치 적용
+            if profile["weight"] != "unknown":
+                weight_factor = self.weight_risk_weights["weight"].get(profile["weight"], 1.0)
+                base_score *= weight_factor
         
         # 신뢰도 가중치 적용
         confidence_weight = confidence * 15
@@ -977,9 +1369,603 @@ class YOLOBlip2RiskNode(Node):
             self.get_logger().error(f"장면 설명 생성 실패: {str(e)}")
             return "장면 설명을 생성할 수 없습니다."
 
+    def analyze_object_physical_properties(self, image, class_name, bbox):
+        """BLIP2를 사용하여 물체의 물리적 특성을 동적으로 분석"""
+        try:
+            # 바운딩 박스 영역 추출
+            x1, y1, x2, y2 = int(bbox['x1']), int(bbox['y1']), int(bbox['x2']), int(bbox['y2'])
+            object_image = image[y1:y2, x1:x2]
+            
+            if object_image.size == 0:
+                return self.get_default_properties()
+            
+            # BLIP2로 물리적 특성 분석
+            properties = {
+                'weight': self.analyze_weight(object_image, class_name),
+                'temperature': self.analyze_temperature(object_image, class_name),
+                'stability': self.analyze_stability(object_image, class_name),
+                'fragility': self.analyze_fragility(object_image, class_name),
+                'size': self.analyze_size(object_image, class_name),
+                'movement_speed': self.analyze_movement_speed(object_image, class_name)
+            }
+            
+            return properties
+            
+        except Exception as e:
+            self.get_logger().error(f"물리적 특성 분석 오류: {str(e)}")
+            return self.get_default_properties()
+    
+    def analyze_weight(self, image, class_name):
+        """BLIP2로 무게 분석"""
+        try:
+            prompt = f"What is the weight of this {class_name}? Is it very light, light, medium, heavy, or very heavy?"
+            result = self.blip_analysis(image, prompt)
+            
+            # 결과에서 무게 정보 추출
+            result_lower = result.lower()
+            if 'very light' in result_lower or 'lightweight' in result_lower:
+                return 'very_light'
+            elif 'light' in result_lower:
+                return 'light'
+            elif 'medium' in result_lower or 'moderate' in result_lower:
+                return 'medium'
+            elif 'heavy' in result_lower:
+                return 'heavy'
+            elif 'very heavy' in result_lower or 'extremely heavy' in result_lower:
+                return 'very_heavy'
+            else:
+                return 'medium'  # 기본값
+                
+        except Exception as e:
+            return 'medium'
+    
+    def analyze_temperature(self, image, class_name):
+        """BLIP2로 온도 분석"""
+        try:
+            prompt = f"What is the temperature of this {class_name}? Is it cold, room temperature, warm, hot, or very hot?"
+            result = self.blip_analysis(image, prompt)
+            
+            result_lower = result.lower()
+            if 'cold' in result_lower or 'cool' in result_lower:
+                return 'cold'
+            elif 'room temperature' in result_lower or 'normal' in result_lower:
+                return 'room_temp'
+            elif 'warm' in result_lower:
+                return 'warm'
+            elif 'hot' in result_lower:
+                return 'hot'
+            elif 'very hot' in result_lower or 'extremely hot' in result_lower:
+                return 'very_hot'
+            else:
+                return 'room_temp'
+                
+        except Exception as e:
+            return 'room_temp'
+    
+    def analyze_stability(self, image, class_name):
+        """BLIP2로 안정성 분석"""
+        try:
+            prompt = f"Is this {class_name} stable, movable, unstable, or dynamic? Can it fall or move easily?"
+            result = self.blip_analysis(image, prompt)
+            
+            result_lower = result.lower()
+            if 'stable' in result_lower or 'fixed' in result_lower:
+                return 'stable'
+            elif 'movable' in result_lower or 'can move' in result_lower:
+                return 'movable'
+            elif 'unstable' in result_lower or 'can fall' in result_lower:
+                return 'unstable'
+            elif 'dynamic' in result_lower or 'moving' in result_lower:
+                return 'dynamic'
+            else:
+                return 'stable'
+                
+        except Exception as e:
+            return 'stable'
+    
+    def analyze_fragility(self, image, class_name):
+        """BLIP2로 깨지기 쉬움 분석"""
+        try:
+            prompt = f"Is this {class_name} fragile, breakable, or sturdy? Can it break easily?"
+            result = self.blip_analysis(image, prompt)
+            
+            result_lower = result.lower()
+            if 'fragile' in result_lower or 'breakable' in result_lower or 'easily break' in result_lower:
+                return 'very_high'
+            elif 'somewhat fragile' in result_lower or 'can break' in result_lower:
+                return 'high'
+            elif 'moderate' in result_lower or 'medium' in result_lower:
+                return 'medium'
+            elif 'sturdy' in result_lower or 'strong' in result_lower:
+                return 'low'
+            else:
+                return 'medium'
+                
+        except Exception as e:
+            return 'medium'
+    
+    def analyze_size(self, image, class_name):
+        """이미지 크기 기반으로 크기 분석"""
+        try:
+            height, width = image.shape[:2]
+            area = height * width
+            
+            # 상대적 크기 계산
+            if area < 1000:  # 매우 작음
+                return 'very_small'
+            elif area < 5000:  # 작음
+                return 'small'
+            elif area < 20000:  # 보통
+                return 'medium'
+            elif area < 50000:  # 큼
+                return 'large'
+            else:  # 매우 큼
+                return 'very_large'
+                
+        except Exception as e:
+            return 'medium'
+    
+    def analyze_movement_speed(self, image, class_name):
+        """BLIP2로 움직임 속도 분석"""
+        try:
+            prompt = f"Can this {class_name} move? Is it static, slow moving, fast moving, or variable speed?"
+            result = self.blip_analysis(image, prompt)
+            
+            result_lower = result.lower()
+            if 'static' in result_lower or 'stationary' in result_lower:
+                return 'static'
+            elif 'slow' in result_lower:
+                return 'slow'
+            elif 'fast' in result_lower or 'quick' in result_lower:
+                return 'fast'
+            elif 'variable' in result_lower or 'dynamic' in result_lower:
+                return 'variable'
+            else:
+                return 'static'
+                
+        except Exception as e:
+            return 'static'
+    
+    def blip_analysis(self, image, prompt):
+        """BLIP2로 단일 이미지 분석"""
+        try:
+            if self.blip_model is None:
+                return "unknown"
+            
+            # 이미지 최적화
+            optimized_img = self.optimize_image_for_blip(image)
+            rgb_img = cv2.cvtColor(optimized_img, cv2.COLOR_BGR2RGB)
+            pil_img = PILImage.fromarray(rgb_img)
+            
+            # BLIP2 분석
+            inputs = self.blip_processor(pil_img, prompt, return_tensors="pt").to(self.device)
+            
+            # FP16 처리
+            if self.device.type == 'cuda':
+                for key in inputs:
+                    if inputs[key].dtype == torch.float32:
+                        inputs[key] = inputs[key].half()
+            
+            with torch.no_grad():
+                outputs = self.blip_model.generate(**inputs, max_length=50, do_sample=False)
+            
+            result = self.blip_processor.decode(outputs[0], skip_special_tokens=True)
+            return result
+            
+        except Exception as e:
+            self.get_logger().error(f"BLIP2 분석 오류: {str(e)}")
+            return "unknown"
+    
+    def get_default_properties(self):
+        """기본 물리적 특성"""
+        return {
+            'weight': 'medium',
+            'temperature': 'room_temp',
+            'stability': 'stable',
+            'fragility': 'medium',
+            'size': 'medium',
+            'movement_speed': 'static'
+        }
+
     def scan_callback(self, msg: LaserScan):
         """LiDAR 콜백: 최신 스캔 저장"""
         self.latest_scan = msg
+
+    def analyze_object_by_computer_vision(self, image, class_name, bbox):
+        """컴퓨터 비전 기반으로 물체의 물리적 특성 분석"""
+        try:
+            # 바운딩 박스 영역 추출
+            x1, y1, x2, y2 = int(bbox['x1']), int(bbox['y1']), int(bbox['x2']), int(bbox['y2'])
+            object_image = image[y1:y2, x1:x2]
+            
+            if object_image.size == 0:
+                return self.get_default_properties()
+            
+            properties = {}
+            
+            # 1. 크기 분석 (이미지 영역 기반)
+            properties['size'] = self.analyze_size_by_area(object_image)
+            
+            # 2. 색상 기반 온도 추정
+            properties['temperature'] = self.analyze_temperature_by_color(object_image)
+            
+            # 3. 텍스처 기반 재질 분석
+            properties['fragility'] = self.analyze_fragility_by_texture(object_image)
+            
+            # 4. 형태 기반 안정성 분석
+            properties['stability'] = self.analyze_stability_by_shape(object_image, class_name)
+            
+            # 5. 무게 추정 (크기와 재질 기반)
+            properties['weight'] = self.estimate_weight_by_size_and_material(properties['size'], properties['fragility'])
+            
+            # 6. 움직임 속도 추정
+            properties['movement_speed'] = self.estimate_movement_speed(class_name, properties['stability'])
+            
+            return properties
+            
+        except Exception as e:
+            self.get_logger().error(f"컴퓨터 비전 분석 오류: {str(e)}")
+            return self.get_default_properties()
+    
+    def analyze_size_by_area(self, image):
+        """이미지 영역 기반 크기 분석"""
+        height, width = image.shape[:2]
+        area = height * width
+        
+        if area < 1000:
+            return 'very_small'
+        elif area < 5000:
+            return 'small'
+        elif area < 20000:
+            return 'medium'
+        elif area < 50000:
+            return 'large'
+        else:
+            return 'very_large'
+    
+    def analyze_temperature_by_color(self, image):
+        """색상 기반 온도 추정"""
+        try:
+            # HSV 색상 공간으로 변환
+            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+            
+            # 빨간색/주황색 영역 탐지 (뜨거운 물체)
+            lower_red1 = np.array([0, 100, 100])
+            upper_red1 = np.array([10, 255, 255])
+            lower_red2 = np.array([160, 100, 100])
+            upper_red2 = np.array([180, 255, 255])
+            
+            red_mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+            red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+            red_mask = red_mask1 + red_mask2
+            
+            # 노란색 영역 탐지 (따뜻한 물체)
+            lower_yellow = np.array([20, 100, 100])
+            upper_yellow = np.array([30, 255, 255])
+            yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+            
+            # 파란색 영역 탐지 (차가운 물체)
+            lower_blue = np.array([100, 100, 100])
+            upper_blue = np.array([130, 255, 255])
+            blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+            
+            # 각 색상 영역의 비율 계산
+            total_pixels = image.shape[0] * image.shape[1]
+            red_ratio = np.sum(red_mask > 0) / total_pixels
+            yellow_ratio = np.sum(yellow_mask > 0) / total_pixels
+            blue_ratio = np.sum(blue_mask > 0) / total_pixels
+            
+            # 온도 추정
+            if red_ratio > 0.3:
+                return 'very_hot'
+            elif red_ratio > 0.1 or yellow_ratio > 0.2:
+                return 'hot'
+            elif yellow_ratio > 0.1:
+                return 'warm'
+            elif blue_ratio > 0.2:
+                return 'cold'
+            else:
+                return 'room_temp'
+                
+        except Exception as e:
+            return 'room_temp'
+    
+    def analyze_fragility_by_texture(self, image):
+        """텍스처 기반 재질 분석"""
+        try:
+            # 그레이스케일 변환
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # 엣지 검출 (깨지기 쉬운 물체는 더 많은 엣지를 가짐)
+            edges = cv2.Canny(gray, 50, 150)
+            edge_density = np.sum(edges > 0) / (image.shape[0] * image.shape[1])
+            
+            # 텍스처 분석 (GLCM 특성)
+            # 간단한 방법: 표준편차로 텍스처 복잡도 측정
+            texture_std = np.std(gray)
+            
+            # 재질 추정
+            if edge_density > 0.1 or texture_std > 50:
+                return 'very_high'  # 복잡한 텍스처 = 깨지기 쉬움
+            elif edge_density > 0.05 or texture_std > 30:
+                return 'high'
+            elif edge_density > 0.02 or texture_std > 15:
+                return 'medium'
+            else:
+                return 'low'
+                
+        except Exception as e:
+            return 'medium'
+    
+    def analyze_stability_by_shape(self, image, class_name):
+        """형태 기반 안정성 분석"""
+        try:
+            # 그레이스케일 변환
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            
+            # 이진화
+            _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+            
+            # 윤곽선 찾기
+            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if not contours:
+                return 'stable'
+            
+            # 가장 큰 윤곽선 선택
+            largest_contour = max(contours, key=cv2.contourArea)
+            
+            # 윤곽선의 특성 분석
+            area = cv2.contourArea(largest_contour)
+            perimeter = cv2.arcLength(largest_contour, True)
+            
+            # 원형도 계산 (1에 가까울수록 원형)
+            circularity = 4 * np.pi * area / (perimeter * perimeter) if perimeter > 0 else 0
+            
+            # 직사각형 피팅
+            rect = cv2.minAreaRect(largest_contour)
+            width, height = rect[1]
+            aspect_ratio = max(width, height) / min(width, height) if min(width, height) > 0 else 1
+            
+            # 안정성 추정
+            if circularity > 0.8:
+                return 'stable'  # 원형 = 안정적
+            elif aspect_ratio > 3:
+                return 'unstable'  # 매우 길쭉함 = 불안정
+            elif aspect_ratio > 2:
+                return 'movable'  # 길쭉함 = 움직일 수 있음
+            else:
+                return 'stable'
+                
+        except Exception as e:
+            return 'stable'
+    
+    def estimate_weight_by_size_and_material(self, size, fragility):
+        """크기와 재질 기반 무게 추정"""
+        # 크기별 기본 무게
+        size_weights = {
+            'very_small': 0.1,
+            'small': 0.5,
+            'medium': 2.0,
+            'large': 8.0,
+            'very_large': 25.0
+        }
+        
+        # 재질별 밀도 가중치
+        fragility_weights = {
+            'very_high': 0.8,  # 유리 등 - 가벼움
+            'high': 1.0,        # 플라스틱 등 - 보통
+            'medium': 1.2,      # 나무 등 - 약간 무거움
+            'low': 1.5          # 금속 등 - 무거움
+        }
+        
+        base_weight = size_weights.get(size, 2.0)
+        density_factor = fragility_weights.get(fragility, 1.0)
+        
+        estimated_weight = base_weight * density_factor
+        
+        # 무게 등급 분류
+        if estimated_weight < 0.5:
+            return 'very_light'
+        elif estimated_weight < 2.0:
+            return 'light'
+        elif estimated_weight < 8.0:
+            return 'medium'
+        elif estimated_weight < 20.0:
+            return 'heavy'
+        else:
+            return 'very_heavy'
+    
+    def estimate_movement_speed(self, class_name, stability):
+        """클래스명과 안정성 기반 움직임 속도 추정"""
+        if class_name in ['person', 'human']:
+            return 'variable'
+        elif stability == 'dynamic':
+            return 'fast'
+        elif stability == 'movable':
+            return 'slow'
+        elif stability == 'unstable':
+            return 'variable'
+        else:
+            return 'static'
+
+    def analyze_weight_and_risk_properties(self, image, class_name, bbox):
+        """BLIP2를 사용하여 물체의 무게와 위험도를 한 번에 분석"""
+        try:
+            # 바운딩 박스 영역 추출
+            x1, y1, x2, y2 = int(bbox['x1']), int(bbox['y1']), int(bbox['x2']), int(bbox['y2'])
+            object_image = image[y1:y2, x1:x2]
+            
+            if object_image.size == 0:
+                return self.get_default_weight_risk_properties()
+            
+            # BLIP2로 무게와 위험도를 한 번에 분석
+            properties = self.analyze_weight_and_risk_combined(object_image, class_name)
+            
+            return properties
+            
+        except Exception as e:
+            self.get_logger().error(f"무게 및 위험도 특성 분석 오류: {str(e)}")
+            return self.get_default_weight_risk_properties()
+    
+    def get_default_weight_risk_properties(self):
+        """기본 무게 및 위험도 특성"""
+        return {
+            'weight': 'medium',
+            'risk_type': 'static',
+            'mobility': 'stationary',
+            'stability': 'stable',
+            'danger_level': 'medium_risk',
+            'size': 'medium'
+        }
+
+    def analyze_weight_and_risk_combined(self, image, class_name):
+        """BLIP2로 무게와 위험도를 한 번에 분석"""
+        try:
+            prompt = f"""Analyze this {class_name} object comprehensively. Provide the following information in a structured format:
+
+1. Weight category: very_light (under 0.5kg), light (0.5-2kg), medium (2-8kg), heavy (8-20kg), or very_heavy (over 20kg)
+2. Risk type: static (stationary), dynamic (moving), human (person), sudden (unexpected), or environmental (part of environment)
+3. Mobility: stationary (fixed), movable (can be moved), mobile (can move), or unpredictable (unexpected movement)
+4. Danger level: safe, low_risk, medium_risk, high_risk, or extremely_dangerous
+5. Size: very_small, small, medium, large, or very_large
+
+Consider the object's material, size, potential for movement, and risk to navigation. Format your response as: weight|risk_type|mobility|danger_level|size"""
+
+            result = self.blip_analysis(image, prompt)
+            
+            # 결과 파싱
+            properties = self.parse_combined_analysis(result)
+            
+            self.get_logger().debug(f"통합 분석 결과 - {class_name}: {properties}")
+            
+            return properties
+            
+        except Exception as e:
+            self.get_logger().error(f"통합 분석 실패: {str(e)}")
+            return self.get_default_weight_risk_properties()
+    
+    def parse_combined_analysis(self, result):
+        """통합 분석 결과를 파싱"""
+        try:
+            # 결과를 파이프(|)로 분리
+            parts = result.strip().split('|')
+            
+            if len(parts) >= 5:
+                weight = self.parse_weight(parts[0].strip())
+                risk_type = self.parse_risk_type(parts[1].strip())
+                mobility = self.parse_mobility(parts[2].strip())
+                danger_level = self.parse_danger_level(parts[3].strip())
+                size = self.parse_size(parts[4].strip())
+            else:
+                # 파싱 실패 시 기본값 사용
+                weight = 'medium'
+                risk_type = 'static'
+                mobility = 'stationary'
+                danger_level = 'medium_risk'
+                size = 'medium'
+            
+            return {
+                'weight': weight,
+                'risk_type': risk_type,
+                'mobility': mobility,
+                'stability': self.infer_stability_from_mobility(mobility),
+                'danger_level': danger_level,
+                'size': size
+            }
+            
+        except Exception as e:
+            self.get_logger().error(f"결과 파싱 실패: {str(e)}")
+            return self.get_default_weight_risk_properties()
+    
+    def parse_weight(self, text):
+        """무게 텍스트 파싱"""
+        text_lower = text.lower()
+        if 'very_light' in text_lower or 'under 0.5' in text_lower:
+            return 'very_light'
+        elif 'light' in text_lower or '0.5-2' in text_lower:
+            return 'light'
+        elif 'medium' in text_lower or '2-8' in text_lower:
+            return 'medium'
+        elif 'heavy' in text_lower or '8-20' in text_lower:
+            return 'heavy'
+        elif 'very_heavy' in text_lower or 'over 20' in text_lower:
+            return 'very_heavy'
+        else:
+            return 'medium'
+    
+    def parse_risk_type(self, text):
+        """위험 유형 텍스트 파싱"""
+        text_lower = text.lower()
+        if 'human' in text_lower or 'person' in text_lower:
+            return 'human'
+        elif 'dynamic' in text_lower or 'moving' in text_lower:
+            return 'dynamic'
+        elif 'sudden' in text_lower or 'unexpected' in text_lower:
+            return 'sudden'
+        elif 'environmental' in text_lower or 'environment' in text_lower:
+            return 'environmental'
+        else:
+            return 'static'
+    
+    def parse_mobility(self, text):
+        """이동성 텍스트 파싱"""
+        text_lower = text.lower()
+        if 'stationary' in text_lower or 'fixed' in text_lower:
+            return 'stationary'
+        elif 'movable' in text_lower or 'can be moved' in text_lower:
+            return 'movable'
+        elif 'mobile' in text_lower or 'can move' in text_lower:
+            return 'mobile'
+        elif 'unpredictable' in text_lower or 'unexpected' in text_lower:
+            return 'unpredictable'
+        else:
+            return 'stationary'
+    
+    def parse_danger_level(self, text):
+        """위험도 레벨 텍스트 파싱"""
+        text_lower = text.lower()
+        if 'extremely_dangerous' in text_lower or 'very dangerous' in text_lower:
+            return 'extremely_dangerous'
+        elif 'high_risk' in text_lower or 'dangerous' in text_lower:
+            return 'high_risk'
+        elif 'medium_risk' in text_lower or 'moderate' in text_lower:
+            return 'medium_risk'
+        elif 'low_risk' in text_lower or 'minimal' in text_lower:
+            return 'low_risk'
+        elif 'safe' in text_lower or 'harmless' in text_lower:
+            return 'safe'
+        else:
+            return 'medium_risk'
+    
+    def parse_size(self, text):
+        """크기 텍스트 파싱"""
+        text_lower = text.lower()
+        if 'very_small' in text_lower or 'tiny' in text_lower:
+            return 'very_small'
+        elif 'small' in text_lower:
+            return 'small'
+        elif 'medium' in text_lower:
+            return 'medium'
+        elif 'large' in text_lower:
+            return 'large'
+        elif 'very_large' in text_lower or 'huge' in text_lower:
+            return 'very_large'
+        else:
+            return 'medium'
+    
+    def infer_stability_from_mobility(self, mobility):
+        """이동성으로부터 안정성 추론"""
+        if mobility == 'stationary':
+            return 'stable'
+        elif mobility == 'movable':
+            return 'stable'
+        elif mobility == 'mobile':
+            return 'dynamic'
+        elif mobility == 'unpredictable':
+            return 'unstable'
+        else:
+            return 'stable'
 
 def main(args=None):
     rclpy.init(args=args)
