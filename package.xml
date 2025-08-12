@@ -17,8 +17,22 @@
   <depend>geometry_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>cv_bridge</depend>
+  <depend>nav2_common</depend>
+  <depend>nav2_core</depend>
+  <depend>nav2_util</depend>
+  <depend>nav2_behavior_tree</depend>
+  <depend>nav2_bt_navigator</depend>
+  <depend>nav2_controller</depend>
+  <depend>nav2_costmap_2d</depend>
+  <depend>nav2_lifecycle_manager</depend>
+  <depend>nav2_map_server</depend>
+  <depend>nav2_msgs</depend>
+  <depend>nav2_navfn_planner</depend>
+  <depend>nav2_planner</depend>
+  <depend>nav2_amcl</depend>
+  <depend>dwb_core</depend>
+  <depend>dwb_plugins</depend>
   <exec_depend>cartographer_ros</exec_depend>
-  <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>rviz2</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>

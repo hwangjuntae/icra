@@ -43,6 +43,12 @@ sudo apt install -y \
     ros-humble-vision-msgs \
     ros-humble-rqt-image-view
 
+# Cartographer 관련 패키지 설치
+print_status "Cartographer 관련 패키지 설치 중..."
+sudo apt install -y \
+    ros-humble-cartographer \
+    ros-humble-cartographer-ros
+
 # cv_bridge는 나중에 별도로 처리
 print_status "cv_bridge 제거 중..."
 sudo apt remove -y python3-cv-bridge ros-humble-cv-bridge || true
@@ -68,9 +74,11 @@ sudo apt install -y \
 print_status "Python 패키지 설치 중..."
 pip3 install --upgrade pip
 
-# NumPy 호환성 문제 해결
-print_status "NumPy 호환성 설정 중..."
-pip3 install "numpy==1.23.5" --force-reinstall
+# NumPy와 SciPy 호환성 문제 해결
+print_status "NumPy와 SciPy 호환성 설정 중..."
+pip3 uninstall -y numpy scipy || true
+pip3 install "numpy==1.24.3" --force-reinstall
+pip3 install "scipy==1.10.1" --force-reinstall
 
 # sympy 충돌 문제 해결
 print_status "sympy 충돌 문제 해결 중..."
@@ -80,10 +88,10 @@ pip3 install --upgrade --force-reinstall --ignore-installed sympy
 print_status "필수 패키지 설치 중..."
 pip3 install torch torchvision transformers ultralytics pandas tqdm --ignore-installed
 
-# OpenCV 호환 버전 설치 (NumPy 버전 고정)
+# OpenCV 호환 버전 설치 (NumPy 1.24.3과 호환)
 print_status "OpenCV 호환 버전 설치 중..."
-pip3 install opencv-python==4.6.0.66 --force-reinstall --no-deps
-pip3 install numpy==1.23.5 --force-reinstall
+pip3 install opencv-python==4.8.1.78 --force-reinstall --no-deps
+pip3 install numpy==1.24.3 --force-reinstall
 
 # cv_bridge 재설치 (OpenCV 4.6.0과 호환)
 print_status "cv_bridge 재설치 중..."
@@ -132,6 +140,18 @@ echo "- 구독: /Camera/rgb (sensor_msgs/Image)"
 echo "- 구독: /Lidar/laser_scan (sensor_msgs/LaserScan)"
 echo "- 발행: /risk_assessment/image (sensor_msgs/Image)"
 echo ""
+echo "Cartographer 사용법:"
+echo "1. 워크스페이스 빌드:"
+echo "   source /opt/ros/humble/setup.bash && colcon build"
+echo "2. Cartographer 실행:"
+echo "   source install/setup.bash && ros2 launch risk_nav cartographer.launch.py"
+echo ""
+echo "Cartographer 문제 해결:"
+echo "- 토픽 리매핑: /scan -> /Lidar/laser_scan"
+echo "- LiDAR range 설정: min_range=0.3, max_range=120.0"
+echo "- TF 프레임: tracking_frame=base_link"
+echo "- 로봇이 움직여야 맵이 생성됩니다"
+echo ""
 print_status "설치 과정이 완료되었습니다."
 
 # 11. 최종 점검
@@ -140,4 +160,12 @@ if python3 -c "import ultralytics, torch, transformers, cv2, numpy, rclpy; print
     print_status "모든 필수 패키지가 정상적으로 설치되었습니다."
 else
     print_error "일부 패키지 설치에 문제가 있습니다. requirements.txt를 확인하세요."
+fi
+
+# Cartographer 패키지 확인
+print_status "Cartographer 패키지 확인 중..."
+if ros2 pkg list | grep -q cartographer; then
+    print_status "Cartographer 패키지가 정상적으로 설치되었습니다."
+else
+    print_error "Cartographer 패키지 설치에 문제가 있습니다."
 fi 
